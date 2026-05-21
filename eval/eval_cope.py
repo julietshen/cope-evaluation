@@ -26,8 +26,8 @@ from pathlib import Path
 
 import requests
 
-ENDPOINT = "https://juliet--cope-b-a4b-serve.modal.run/v1/completions"
-MODEL = "zentropi-ai/cope-b-a4b"
+DEFAULT_ENDPOINT = "https://juliet--cope-b-a4b-serve.modal.run/v1/chat/completions"
+DEFAULT_MODEL = "zentropi-ai/cope-b-a4b"
 HERE = Path(__file__).parent
 POLICIES_DIR = HERE / "policies"
 RESULTS_DIR = HERE / "results"
@@ -75,40 +75,55 @@ def load_test_set(path: Path, limit: int | None) -> list[dict]:
     return rows[:limit] if limit else rows
 
 
-def call_cope(policy: str, content: str, api_key: str, timeout: int = 300) -> tuple[str, str]:
+def call_cope(policy: str, content: str, api_key: str, endpoint: str, model: str,
+              max_tokens: int = 1, timeout: int = 300) -> tuple[str, str]:
     prompt = PROMPT_TEMPLATE.format(policy=policy, content=content)
+    is_chat = endpoint.rstrip("/").endswith("/chat/completions")
+    if is_chat:
+        body = {"model": model, "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": max_tokens, "temperature": 0.0, "top_p": 1.0}
+    else:
+        body = {"model": model, "prompt": prompt,
+                "max_tokens": max_tokens, "temperature": 0.0, "top_p": 1.0}
     resp = requests.post(
-        ENDPOINT,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": MODEL,
-            "prompt": prompt,
-            "max_tokens": 1,
-            "temperature": 0.0,
-            "top_p": 1.0,
-        },
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json=body,
         timeout=timeout,
     )
     resp.raise_for_status()
-    raw = resp.json()["choices"][0]["text"]
-    pred = "1" if raw.strip().startswith("1") else "0" if raw.strip().startswith("0") else ""
+    choice = resp.json()["choices"][0]
+    raw = (choice["message"]["content"] if is_chat else choice["text"]) or ""
+    # Cope: max_tokens=1 returns "0" or "1" directly.
+    # Reasoning models (e.g. gpt-oss-safeguard): output is CoT followed by final answer.
+    # Take the LAST "0" or "1" appearing in the response — that's the answer after reasoning.
+    stripped = raw.strip()
+    pred = ""
+    if max_tokens <= 4:
+        # Short-output mode: first 0/1 token wins.
+        if stripped.startswith("1"): pred = "1"
+        elif stripped.startswith("0"): pred = "0"
+    else:
+        # CoT mode: scan for last standalone 0 or 1 character.
+        for ch in reversed(stripped):
+            if ch in ("0", "1"):
+                pred = ch
+                break
     return pred, raw
 
 
-def warmup(api_key: str) -> None:
-    print("warming up endpoint (cold start can take 2-3 min)...", flush=True)
+def warmup(api_key: str, endpoint: str, model: str, max_tokens: int = 1) -> None:
+    print(f"warming up {endpoint} (cold start can take 2-3 min)...", flush=True)
     t0 = time.time()
-    pred, raw = call_cope("Flag harmful content.", "hello", api_key, timeout=600)
-    print(f"  warm in {time.time()-t0:.1f}s, raw={raw!r}", flush=True)
+    pred, raw = call_cope("Flag harmful content.", "hello", api_key, endpoint, model,
+                          max_tokens=max_tokens, timeout=600)
+    print(f"  warm in {time.time()-t0:.1f}s, pred={pred!r}, raw={raw[:200]!r}", flush=True)
 
 
 def run_one(args):
-    row_id, content, policy_name, policy_text, api_key = args
+    row_id, content, policy_name, policy_text, api_key, endpoint, model, max_tokens = args
     try:
-        pred, raw = call_cope(policy_text, content, api_key)
+        pred, raw = call_cope(policy_text, content, api_key, endpoint, model, max_tokens=max_tokens)
         return row_id, policy_name, pred, raw, None
     except Exception as e:
         return row_id, policy_name, "", "", str(e)
@@ -138,6 +153,12 @@ def main():
     ap.add_argument("--policies", nargs="+", default=["minimal", "simple", "medium", "full"])
     ap.add_argument("--concurrency", type=int, default=8)
     ap.add_argument("--skip-warmup", action="store_true")
+    ap.add_argument("--endpoint", default=DEFAULT_ENDPOINT,
+                    help="vLLM /v1/completions or /v1/chat/completions URL (default: cope-b-a4b on Modal)")
+    ap.add_argument("--model", default=DEFAULT_MODEL,
+                    help="model name in request body (cope-b: 'zentropi-ai/cope-b-a4b'; cope-a LoRA: 'cope-a')")
+    ap.add_argument("--max-tokens", type=int, default=1,
+                    help="max output tokens (1 for cope; bump to 2048 for reasoning models like gpt-oss-safeguard)")
     args = ap.parse_args()
 
     api_key = os.environ.get("VLLM_API_KEY")
@@ -149,13 +170,13 @@ def main():
     print(f"loaded {len(rows)} test rows from {args.test_set}, {len(policies)} policies: {list(policies)}")
 
     if not args.skip_warmup:
-        warmup(api_key)
+        warmup(api_key, args.endpoint, args.model, args.max_tokens)
 
-    # Build (row_id, content, policy_name, policy_text) jobs
+    # Build (row_id, content, policy_name, policy_text, ...) jobs
     jobs = []
     for row in rows:
         for pname, ptext in policies.items():
-            jobs.append((row["id"], row["content"], pname, ptext, api_key))
+            jobs.append((row["id"], row["content"], pname, ptext, api_key, args.endpoint, args.model, args.max_tokens))
 
     print(f"firing {len(jobs)} requests with concurrency={args.concurrency}...", flush=True)
     results: dict[tuple[str, str], tuple[str, str, str | None]] = {}

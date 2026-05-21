@@ -27,7 +27,7 @@ pip install requests
 cd eval
 python eval_cope.py --policies minimal simple medium full zentropi_official
 python eval_cope.py --test-set sex_eval/test_set.csv --label sex \
-  --policies sex_minimal sex_simple sex_medium sex_zentropi_long sex_oai sex_oai_adapted
+  --policies sexual_content_minimal sexual_content_simple sexual_content_medium sexual_content_zentropi_long sexual_content_oai sexual_content_oai_adapted
 ```
 
 Expect ~$2 in Modal GPU time for both evals end-to-end.

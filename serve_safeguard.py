@@ -1,21 +1,21 @@
 """
-Serve zentropi-ai/cope-b-a4b on Modal via vLLM, OpenAI-compatible endpoint.
+Serve openai/gpt-oss-safeguard-20b on Modal via vLLM.
 
 Usage:
     modal secret create cope-secrets HF_TOKEN=hf_... VLLM_API_KEY=sk-...
-    modal run serve_cope.py::download_model   # one-time, pre-warms the volume
-    modal deploy serve_cope.py                # publishes the endpoint
-    modal app stop cope-b-a4b                 # tear down when done
+    modal run serve_safeguard.py::download_model    # one-time, pre-warms the volume
+    modal deploy serve_safeguard.py                  # publishes the endpoint
+    modal app stop gpt-oss-safeguard                 # tear down when done
 """
 
 import modal
 
-MODEL_NAME = "zentropi-ai/cope-b-a4b"
+MODEL_NAME = "openai/gpt-oss-safeguard-20b"
 GPU_CONFIG = "H100:1"
-MAX_MODEL_LEN = 16384  # bumped from 8192 to fit the ~11k-token "very_long" policy
+MAX_MODEL_LEN = 16384  # match cope-b so we can fit very_long policies
 SCALEDOWN_SECONDS = 10 * 60
 
-app = modal.App("cope-b-a4b")
+app = modal.App("gpt-oss-safeguard")
 
 vllm_image = (
     modal.Image.from_registry(
@@ -23,7 +23,8 @@ vllm_image = (
         add_python="3.12",
     )
     .apt_install("git")
-    .pip_install("vllm", "hf-transfer", "huggingface_hub[hf_transfer]")
+    .pip_install("vllm")
+    .pip_install("hf-transfer", "huggingface_hub[hf_transfer]")
     .env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
 )
 

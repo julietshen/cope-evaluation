@@ -295,12 +295,12 @@ eval/
 │   ├── medium.md                 # structured (terms + includes/excludes)
 │   ├── full.md                   # detailed (cope-style hand-written version)
 │   ├── zentropi_official.md      # official Zentropi self-harm policy (from their API)
-│   ├── sex_minimal.md            # same spread, sexual content
-│   ├── sex_simple.md
-│   ├── sex_medium.md
-│   ├── sex_zentropi_long.md      # Zentropi's published "Long Policy" for sexually explicit content
-│   ├── sex_zentropi_simple.md    # Zentropi's "Simple policy" (incomplete in source — kept for completeness)
-│   └── sex_oai.md                # OpenAI's GS0/GS1/GS2 sexual-content policy
+│   ├── sexual_content_minimal.md            # same spread, sexual content
+│   ├── sexual_content_simple.md
+│   ├── sexual_content_medium.md
+│   ├── sexual_content_zentropi_long.md      # Zentropi's published "Long Policy" for sexually explicit content
+│   ├── sexual_content_zentropi_simple.md    # Zentropi's "Simple policy" (incomplete in source — kept for completeness)
+│   └── sexual_content_oai.md                # OpenAI's GS0/GS1/GS2 sexual-content policy
 ├── sex_eval/                     # data prep workspace for the sexual-content eval
 │   ├── sample_bsky_for_sex_eval.py   # stratified sampler over Bluesky 8M post dataset
 │   ├── candidates_to_label.csv       # 80 candidates for manual labelling
@@ -350,7 +350,7 @@ For the sexual-content eval:
 python eval_cope.py \
   --test-set sex_eval/test_set.csv \
   --label sex \
-  --policies sex_minimal sex_simple sex_medium sex_zentropi_long sex_oai \
+  --policies sexual_content_minimal sexual_content_simple sexual_content_medium sexual_content_zentropi_long sexual_content_oai \
   --concurrency 16
 ```
 
@@ -360,6 +360,9 @@ Useful flags:
 - `--label TAG` — prefix output files with a tag so different runs don't get mixed up
 - `--limit N` — only run on the first N rows (good for smoke tests)
 - `--skip-warmup` — skip the warm-up call if you know the endpoint is hot
+- `--endpoint URL` — point at a different model's `/v1/chat/completions` or `/v1/completions` URL. The harness auto-detects which body shape to use.
+- `--model NAME` — model name in the request body (e.g. `zentropi-ai/cope-b-a4b`, or `cope-a` for the LoRA, or `openai/gpt-oss-safeguard-20b`)
+- `--max-tokens N` — output budget. `1` (default) works for cope, which emits a single token. **Reasoning models like gpt-oss-safeguard need ~2048** so they have room to do their chain-of-thought before answering; the harness then extracts the last `0` or `1` from the response.
 
 #### Step 4: Read the outputs
 
@@ -429,7 +432,7 @@ cd ..
 python eval_cope.py \
   --test-set sex_eval/test_set.csv \
   --label sex \
-  --policies sex_minimal sex_simple sex_medium sex_zentropi_long sex_oai
+  --policies sexual_content_minimal sexual_content_simple sexual_content_medium sexual_content_zentropi_long sexual_content_oai
 ```
 
 ### Worked examples
