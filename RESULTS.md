@@ -10,7 +10,7 @@ See [GUIDE.md](GUIDE.md) for the serving + evaluation playbook this report is bu
 
 - **Cope-b is a very strong policy-conditioned classifier on both domains.** Best F1 = **0.936** on self-harm and **0.885** on sexually explicit content. Precision is **1.000** on every self-harm policy except `minimal`, and the model returned clean binary output on 100% of inputs across thousands of test calls.
 - **Cope-a (the Gemma-2 LoRA) lags cope-b by 0.10–0.23 F1** across both domains — clearly the smaller-model trade-off. It still beats most baselines but is meaningfully behind cope-b on the same policies. The two models also disagree on which policy works best: cope-b favors maximally-detailed `full`, while cope-a sometimes does better with a `simple` or `medium` policy.
-- **More policy detail is not always better.** A 1,000-line "very long" self-harm/suicide/eating-disorders policy underperforms our 80-line `full` policy on cope-b (F1 0.876 vs 0.936). And on cope-a's sex eval, the shortest `sexual_content_simple` policy beat every longer variant.
+- **More policy detail is not always better.** A 1,000-line "very long" self-harm/suicide/eating-disorders policy underperforms our 80-line `full` policy on cope-b (F1 0.876 vs 0.936). And on cope-a's sexual-content evaluation, the shortest `sexual_content_simple` policy beat every longer variant.
 - **Cope-a physically cannot use the 1,000-line policy** — Gemma-2's 8K-token context window is a hard architectural ceiling. This is itself a finding for any team considering smaller open models: extremely detailed policies are a deployment constraint.
 - **Both Zentropi-published policies show framework disagreement with externally-labelled test data**, in opposite directions: the self-harm policy is *more conservative* than the test set expects (low recall, high precision), and the sexually-explicit policy is *more aggressive* (high recall, low precision). These reflect deliberate framing choices by Zentropi, not model failures.
 - **The endpoint matters.** Cope-b requires `/v1/chat/completions`; using `/v1/completions` (which works but isn't the supported path) under-reports F1 by roughly **0.05** across policies. Cope-a is a Gemma-2 base model with no chat template — it must use `/v1/completions`. Worth double-checking the endpoint shape for any policy-conditioned classifier you evaluate.
@@ -257,6 +257,30 @@ The `sexual_content_zentropi_long` policy has the highest recall in the cope-b t
 This is **the mirror image of the self-harm finding**. The published Zentropi self-harm policy was *under-conservative* (high precision, low recall). The published Zentropi sexual-content policy is *over-aggressive* (perfect recall, low precision). In both cases, the official policy reflects deliberate framing choices by Zentropi that don't necessarily match how a downstream platform would label the same content.
 
 Worth raising directly with Zentropi: are these calibrations intentional? If yes, an RMC writeup needs to make the framing explicit. If no, both policies may benefit from a revision pass against external test data.
+
+### Comparison to gpt-oss-safeguard on the same test set
+
+We ran gpt-oss-safeguard-20b on the same 129-row sexual-content test set with the same seven policies. Safeguard does chain-of-thought reasoning (max_tokens=2048).
+
+| Policy                              | F1        | Precision | Recall    | Errors |
+|-------------------------------------|-----------|-----------|-----------|--------|
+| **sexual_content_simple**           | **0.847** | 0.783     | **0.922** | 1      |
+| sexual_content_very_long            | 0.848     | 0.867     | 0.830     | 12     |
+| sexual_content_medium               | 0.828     | 0.878     | 0.783     | 10     |
+| sexual_content_zentropi_long        | 0.780     | 0.765     | 0.796     | 8      |
+| sexual_content_minimal              | 0.745     | 0.707     | 0.788     | 0      |
+| sexual_content_oai (raw)            | 0.700     | 0.808     | 0.618     | 29     |
+| sexual_content_oai_adapted          | 0.493     | 0.810     | 0.354     | 31     |
+
+Predictions: `eval/results/predictions_safeguard_sex_20260521_190704.csv`
+Summary: `eval/results/summary_safeguard_sex_20260521_190704.csv`
+
+**Cope-b beats safeguard by 0.04 F1 (0.885 vs 0.847)** on the same test set with the same policies. Patterns worth noting:
+
+- **Safeguard's preferences mirror its self-harm behaviour**: it does best with the most detailed policies (`simple`, `very_long`) and worst with the OpenAI policy variants. Its CoT reasoning extracts value from explicit policy detail.
+- **Cope-b, by contrast, ties the best F1 between the one-sentence `minimal` and the 15-line `simple` policies.** Safeguard's `minimal` F1 is 0.745 — meaningfully worse than its detailed-policy F1. Cope-b just *knows* what sexually explicit content is; safeguard needs the policy to spell it out.
+- **Safeguard had 91 malformed responses out of 903 calls (10%) on this set**, vs cope-b's 1. CoT models occasionally produce reasoning that doesn't include a final 0/1 character, which gets counted as a false negative.
+- **The OpenAI policies are particularly bad on safeguard** (F1 0.493–0.700, with 29–31 errors). The embedded `Output: VALID/INVALID` instructions confuse the model's output format more severely than they confuse cope-b.
 
 ### Finding: a 700-line "very long" sexual content policy is worse than a 1-line policy
 
