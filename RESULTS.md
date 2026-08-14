@@ -271,7 +271,7 @@ We ran gpt-oss-safeguard-20b on the same 129-row sexual-content test set with th
 | sexual_content_zentropi_long        | 0.780     | 0.765     | 0.796     | 8      |
 | sexual_content_minimal              | 0.745     | 0.707     | 0.788     | 0      |
 | sexual_content_oai (raw)            | 0.700     | 0.808     | 0.618     | 29     |
-| sexual_content_oai_adapted          | 0.493     | 0.810     | 0.354     | 31     |
+| sexual_content_oai_adapted          | 0.493     | 0.810     | 0.354     | 4      |
 
 Predictions: `eval/results/predictions_safeguard_sex_20260521_190704.csv`
 Summary: `eval/results/summary_safeguard_sex_20260521_190704.csv`
@@ -280,8 +280,8 @@ Summary: `eval/results/summary_safeguard_sex_20260521_190704.csv`
 
 - **Safeguard's preferences mirror its self-harm behaviour**: it does best with the most detailed policies (`simple`, `very_long`) and worst with the OpenAI policy variants. Its CoT reasoning extracts value from explicit policy detail.
 - **Cope-b, by contrast, ties the best F1 between the one-sentence `minimal` and the 15-line `simple` policies.** Safeguard's `minimal` F1 is 0.745 — meaningfully worse than its detailed-policy F1. Cope-b just *knows* what sexually explicit content is; safeguard needs the policy to spell it out.
-- **Safeguard had 91 malformed responses out of 903 calls (10%) on this set**, vs cope-b's 1. CoT models occasionally produce reasoning that doesn't include a final 0/1 character, which gets counted as a false negative.
-- **The OpenAI policies are particularly bad on safeguard** (F1 0.493–0.700, with 29–31 errors). The embedded `Output: VALID/INVALID` instructions confuse the model's output format more severely than they confuse cope-b.
+- **Safeguard had 64 unusable responses out of 903 calls (7%) on this set**, vs cope-b's 1 (self-harm: 12 of 600, 2%). *(Corrected 2026-08: this bullet previously reported 91/10% and misattributed the mechanism.)* Inspecting the raw outputs shows 63 of the 64 failures returned **literally empty text**, not reasoning that omitted a verdict. The mechanism: gpt-oss models separate a private reasoning channel from the final-answer channel, and the API returns only the final channel. With `max_tokens=2048`, the model sometimes spends the entire budget still reasoning and gets truncated before writing anything to the final channel — so the response arrives empty. Consistent with that, failures concentrate where deliberation runs longest: detailed policies (`very_long` 12, `medium` 10) and the format-confused OpenAI policy (29). The harness excludes these rows from the metric denominators (they are not counted as false negatives). Mitigations for future safeguard runs: raise `max_tokens`, or add retry-on-empty to the harness.
+- **The unmodified OpenAI policy is particularly bad on safeguard** (F1 0.700, 29 empty responses — the embedded `Output: VALID/INVALID` instructions appear to trigger extended deliberation that overruns the output budget). The adapted variant fixes the errors (4) but swings the model conservative instead: F1 0.493 with 31 missed violations (recall 0.354).
 
 ### Finding: a 700-line "very long" sexual content policy is worse than a 1-line policy
 
@@ -374,7 +374,7 @@ Summary: `eval/results/summary_shieldstral_sex_20260814_130009.csv`
 Cross-model, best policy per model: **cope-b 0.885 > Shieldstral 0.852 ≈ safeguard 0.847 > cope-a 0.800.**
 
 - **The "short policies win on sex" finding replicates, more sharply than on any round-1 model.** F1 declines monotonically with policy length (0.852 → 0.748), and the mechanism is visible in the columns: recall saturates near 1.0 almost immediately, while precision decays from 0.821 to 0.598 as detail grows. On this domain, every added clause makes Shieldstral flag more — the opposite of cope-b, where `very_long` added only 3 false positives. Combined with the self-harm result, the policy-literalism runs in whichever direction the policy leans: detailed *scoping* policies (self-harm) make it more accurate; detailed *enumeration* policies (sex) make it more aggressive.
-- **The OpenAI-policy format collision disappears.** The unmodified `sexual_content_oai` policy — 29 errors and F1 0.700 on safeguard — produces zero errors and F1 0.794 on Shieldstral. Logit extraction cannot emit a malformed answer, so the embedded `Output: VALID/INVALID` instructions have nothing to break. Across all 1,503 calls in round 2 there were **zero errors**, by construction — the architectural answer to safeguard's 10% malformed-output rate on this set.
+- **The OpenAI-policy format collision disappears.** The unmodified `sexual_content_oai` policy — 29 errors and F1 0.700 on safeguard — produces zero errors and F1 0.794 on Shieldstral. Logit extraction cannot emit a malformed answer, so the embedded `Output: VALID/INVALID` instructions have nothing to break. Across all 1,503 calls in round 2 there were **zero errors**, by construction — the architectural answer to safeguard's 7% empty-response rate on this set (see the corrected round-1 bullet above: those failures are reasoning-budget truncations that return empty final answers).
 
 ### What Shieldstral changes for RMC adopters
 
