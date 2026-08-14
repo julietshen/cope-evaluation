@@ -2,12 +2,12 @@
 
 A walkthrough of how we serve and evaluate open-weight safety models, written for someone who doesn't write code day-to-day. No jargon without explanation.
 
-The recipe here is general — it works for any open-weight LLM-based safety classifier you can download from Hugging Face. We use **`zentropi-ai/cope-b-a4b`** as the running example throughout because we're actively evaluating it for inclusion in the ROOST Model Community. Where something is cope-specific (the prompt template, the exact flags, the file names) it's called out so you can adapt cleanly to a different model.
+The recipe here is general — it works for any policy-conditioned safety classifier, whether it runs on a rented GPU or a laptop. The `vibecheck` harness (`eval/eval.py`) evaluates every model through one interface; each model is a small **adapter** under `eval/models/`, and adding a new model means writing one ~30-line adapter, not touching the harness. We use several models as running examples — `zentropi-ai/cope-b-a4b`, `cope-a-9b`, `openai/gpt-oss-safeguard-20b`, and `mistralai/Shieldstral-1.0-3B` — because they span the three shapes you'll meet: a served MoE model, a served reasoning model, and a laptop-runnable local model.
 
 This guide has two halves:
 
-- **Part 1 — Serving**: getting an open-weight model deployed on a rented GPU and reachable from the laptop.
-- **Part 2 — Evaluating**: feeding test content through the deployed model under different "policy" prompts and measuring how well it labels things.
+- **Part 1 — Serving**: getting an open-weight model deployed on a rented GPU and reachable from the laptop. **Skip this for local models** (e.g. Shieldstral), which run in-process with no server.
+- **Part 2 — Evaluating**: feeding test content through a model under different "policy" prompts and measuring how well it labels things. This is where the harness lives — start here if your model is already reachable (or runs locally).
 
 ---
 
@@ -249,129 +249,131 @@ The last point turns out to matter a lot — see the self-harm case study below.
 
 ### How models receive a prompt — and why this varies
 
-Different policy-conditioned classifiers expect different prompt shapes. Some examples:
+Different policy-conditioned classifiers expect different prompt shapes and produce different answer shapes. Some examples:
 
-- **Cope** uses a raw text completion format (`INSTRUCTIONS / POLICY / CONTENT / ANSWER` blocks, with the model emitting a single `0` or `1` after the ANSWER header). Hit `/v1/completions`, not `/v1/chat/completions`. `max_tokens=1`, `temperature=0`.
-- **gpt-oss-safeguard** uses chat completions with the policy as the system message and the content as the user message; the model is asked to emit `0` or `1`.
+- **Cope** uses a text template (`INSTRUCTIONS / POLICY / CONTENT / ANSWER` blocks, model emits a single `0` or `1` after the ANSWER header). cope-b is chat-template-aware (`/v1/chat/completions`); cope-a is a Gemma-2 base with no chat template (`/v1/completions`). `max_tokens=1`, `temperature=0`.
+- **gpt-oss-safeguard** reasons (chain-of-thought) then emits a final `0` or `1`; needs a large `max_tokens` (~2048) so it has room to finish reasoning before answering, and the answer is the last `0`/`1` in the response.
+- **Shieldstral** doesn't generate text at all — it scores in one forward pass, and we read the yes/no token logits directly and renormalize to a 0–1 score.
 - **Llama-Guard** uses a fixed taxonomy embedded in the prompt and emits `safe` / `unsafe` plus a category code.
 
-🔧 **Cope-specific**: cope's prompt template is:
+The harness isolates exactly these differences into a small **adapter** per model, so the eval loop, metrics, and output format never change. The three things an adapter encapsulates:
 
-```
-INSTRUCTIONS
-============
+1. **Transport** — how you reach the model (OpenAI-compatible HTTP endpoint, local in-process inference, a vendor API).
+2. **Prompt construction** — how policy + content become the model's expected input.
+3. **Answer extraction** — first token, last `0`/`1` after reasoning, yes/no logits → score, or a label string.
 
-Examine the given POLICY and determine if the given CONTENT meets the criteria for ANY of the LABELS. Answer "1" if yes, and "0" if no.
-
-
-POLICY
-======
-
-{your policy text here}
-
-
-CONTENT
-=======
-
-{the post or message to classify}
-
-
-ANSWER
-======
-
-```
-
-For a different model, replace this template in `eval_cope.py` with the model's expected prompt format. The rest of the harness (loading policies, parallelizing requests, computing metrics) is model-agnostic.
+You do **not** edit the harness to add a model — you add an adapter file. See ["Adapting this whole setup for a different model"](#adapting-this-whole-setup-for-a-different-model) below for the adapter contract and a copy-paste starting point.
 
 ### Directory layout (the `eval/` folder)
 
 ```
 eval/
-├── eval_cope.py                  # the harness — sends prompts to Modal, writes results
+├── eval.py                       # the generalized harness — pick a model with --model
+├── models/                       # one adapter per model (the only per-model code)
+│   ├── _openai_http.py           # shared helper for vLLM/OpenAI-style HTTP endpoints
+│   ├── cope_b.py                 # zentropi-ai/cope-b-a4b   (HTTP, chat)
+│   ├── cope_a.py                 # zentropi-ai/cope-a-9b    (HTTP, raw completions)
+│   ├── safeguard.py              # openai/gpt-oss-safeguard-20b (HTTP, CoT)
+│   └── shieldstral.py            # mistralai/Shieldstral-1.0-3B (local inference)
+├── compare_predictions.py        # A/B a run vs another (format-sensitivity check)
+├── probes/
+│   └── selfharm.csv              # calibration probes run before a sweep with --probes
 ├── test_set.csv                  # default: 100-row self-harm test set
 ├── policies/                     # one .md file per policy variant
 │   ├── minimal.md                # one-sentence (self-harm)
 │   ├── simple.md                 # short paragraph
 │   ├── medium.md                 # structured (terms + includes/excludes)
-│   ├── full.md                   # detailed (cope-style hand-written version)
+│   ├── full.md                   # detailed hand-written version
+│   ├── very_long.md              # ~1,000-line maximal policy
 │   ├── zentropi_official.md      # official Zentropi self-harm policy (from their API)
-│   ├── sexual_content_minimal.md            # same spread, sexual content
-│   ├── sexual_content_simple.md
-│   ├── sexual_content_medium.md
-│   ├── sexual_content_zentropi_long.md      # Zentropi's published "Long Policy" for sexually explicit content
-│   ├── sexual_content_zentropi_simple.md    # Zentropi's "Simple policy" (incomplete in source — kept for completeness)
-│   └── sexual_content_oai.md                # OpenAI's GS0/GS1/GS2 sexual-content policy
+│   └── sexual_content_*.md       # same spread, sexual-content domain
 ├── sex_eval/                     # data prep workspace for the sexual-content eval
-│   ├── sample_bsky_for_sex_eval.py   # stratified sampler over Bluesky 8M post dataset
-│   ├── candidates_to_label.csv       # 80 candidates for manual labelling
+│   ├── sample_bsky_for_sex_eval.py   # stratified sampler over Bluesky post dataset
 │   ├── build_redteam.py              # generates synthetic red-team set
-│   ├── redteam_set.csv               # 50 hand-crafted edge cases
 │   ├── merge_test_set.py             # combines the two into the final test set
 │   └── test_set.csv                  # produced by merge_test_set.py
+├── eval_cope.py, eval_shieldstral.py # original single-model scripts (superseded)
 └── results/                          # CSVs of predictions and per-policy metrics
 ```
 
-The same layout works for any model — just rename `eval_cope.py` and swap the prompt template inside it.
-
 ### Running an evaluation, step by step
 
-#### Step 1: Set the API key in the shell
+The command is the same for every model — you only change `--model`. Local models (like Shieldstral) need no server; served models (cope, safeguard) need their Modal endpoint alive first.
+
+#### Step 1 (served models only): make sure the endpoint is alive
+
+Local adapters skip this entirely. For an HTTP-served model:
 
 ```bash
-export VLLM_API_KEY="<the key you put in the Modal secret>"
-```
-
-(It's the same value you used in Part 1 Step 4. If you've already set it as an environment variable in your shell profile, you're fine.)
-
-#### Step 2: Make sure the Modal endpoint is alive
-
-```bash
-modal app list
-# Look for your app name. If it's stopped, redeploy:
+export VLLM_API_KEY="<the key you put in the Modal secret>"   # same value as Part 1 Step 4
+modal app list        # find your app; if stopped, redeploy:
 modal deploy serve_cope.py
 ```
 
-The first request after a deploy will pay the cold-start cost (~2–3 minutes). The eval harness includes a warm-up call by default.
+The first request after a deploy pays the cold-start cost (~2–3 minutes); the harness's first call absorbs it.
 
-#### Step 3: Run the harness
+#### Step 2: Run the harness
 
-For the self-harm eval against the held-out test set:
+Self-harm eval, all policies. Add `--probes` to sanity-check the model's orientation before the sweep (see Step 4):
 
 ```bash
 cd eval
-python eval_cope.py \
+python eval.py --model shieldstral --label sh \
+  --policies minimal simple medium full very_long zentropi_official \
+  --probes probes/selfharm.csv
+```
+
+Same test set, a served model instead — only `--model` and `--concurrency` change:
+
+```bash
+python eval.py --model cope_b --label sh \
   --policies minimal simple medium full zentropi_official \
   --concurrency 16
 ```
 
-For the sexual-content eval:
+Sexual-content eval (any model):
 
 ```bash
-python eval_cope.py \
-  --test-set sex_eval/test_set.csv \
-  --label sex \
-  --policies sexual_content_minimal sexual_content_simple sexual_content_medium sexual_content_zentropi_long sexual_content_oai \
-  --concurrency 16
+python eval.py --model shieldstral --test-set sex_eval/test_set.csv --label sex \
+  --policies sexual_content_minimal sexual_content_simple sexual_content_medium \
+  sexual_content_zentropi_long sexual_content_oai sexual_content_oai_adapted sexual_content_very_long
 ```
 
 Useful flags:
 
-- `--test-set PATH` — point at any CSV with columns `id, content, ground_truth`
-- `--label TAG` — prefix output files with a tag so different runs don't get mixed up
-- `--limit N` — only run on the first N rows (good for smoke tests)
-- `--skip-warmup` — skip the warm-up call if you know the endpoint is hot
-- `--endpoint URL` — point at a different model's `/v1/chat/completions` or `/v1/completions` URL. The harness auto-detects which body shape to use.
-- `--model NAME` — model name in the request body (e.g. `zentropi-ai/cope-b-a4b`, or `cope-a` for the LoRA, or `openai/gpt-oss-safeguard-20b`)
-- `--max-tokens N` — output budget. `1` (default) works for cope, which emits a single token. **Reasoning models like gpt-oss-safeguard need ~2048** so they have room to do their chain-of-thought before answering; the harness then extracts the last `0` or `1` from the response.
+- `--model NAME` — adapter module under `models/` (`shieldstral`, `cope_b`, `cope_a`, `safeguard`).
+- `--test-set PATH` — any CSV with columns `id, content, ground_truth` (default: `test_set.csv`).
+- `--label TAG` — tag in the output filenames so runs don't collide (e.g. `sh`, `sex`).
+- `--policies A B C` — policy files (without `.md`) from `policies/`; each becomes a column.
+- `--limit N` — first N rows only (smoke tests).
+- `--concurrency N` — parallel requests. Applies to HTTP adapters; local adapters run sequentially regardless (one model instance is the bottleneck).
+- `--probes PATH` — a small calibration CSV run before the sweep (Step 4).
+- `--model-arg KEY=VALUE` — override any adapter default without editing code; repeatable. Examples: `--model-arg endpoint=https://...` (point at a redeployed URL), `--model-arg max_tokens=4096`, `--model-arg threshold=0.7` (Shieldstral's score cutoff), `--model-arg prompt_style=chat` (safeguard's native format).
 
-#### Step 4: Read the outputs
+The harness **checkpoints per policy** to `results/ckpt_<model>_<tag>_<policy>.csv` and resumes if interrupted, and **retries once** on an empty response (bumping the output budget) — so a truncated reasoning answer gets a second chance before being recorded as an error.
+
+#### Step 3: Read the outputs
 
 Each run writes two files under `eval/results/`:
 
-- **`predictions_<tag>_<timestamp>.csv`** — one row per test sample, with a `<policy>_pred` column for each policy variant. Open this to see which samples each policy got wrong.
-- **`summary_<tag>_<timestamp>.csv`** — one row per policy variant with TP/FP/FN/TN counts, plus precision, recall, F1, and accuracy.
+- **`predictions_<model>_<tag>_<timestamp>.csv`** — one row per test sample, with a `<policy>_pred` and `<policy>_raw` column per policy. The `_raw` column holds the model's raw output — or `score=<0-1>` for score-based models like Shieldstral, which is what lets you re-threshold later without re-running. Open this to see exactly which samples each policy got wrong.
+- **`summary_<model>_<tag>_<timestamp>.csv`** — one row per policy with TP/FP/FN/TN, an `errors` count (responses that weren't a usable `0`/`1`), and precision/recall/F1/accuracy. Errors are excluded from the rate denominators, not silently counted as misses.
 
-The harness also prints a tidy summary table to the terminal at the end of each run.
+The harness also prints the summary table to the terminal at the end of each run.
+
+#### Step 4: Trust the numbers before you report them
+
+Two cheap checks the harness makes easy — do both for any model you haven't run before:
+
+- **Calibration probes (`--probes probes/selfharm.csv`)** run a handful of unambiguous items (an explicit violation, neutral text, a safe near-miss like a recovery post) *before* the sweep and print each result. If the obvious violation scores "safe" or everything comes out identical, your prompt template or score orientation is wrong — the run aborts if every probe is inverted. This is what caught Shieldstral's setup early; it costs seconds and saves a wasted sweep.
+- **Format-sensitivity A/B (`compare_predictions.py`)** — run the same set/policy two ways (e.g. a different prompt phrasing) and compare, to confirm your numbers aren't an artifact of one arbitrary formatting choice. We used this twice — raw-vs-harmony for safeguard, criterion-in-Query for Shieldstral — before believing either model's sweep:
+
+  ```bash
+  python compare_predictions.py results/predictions_A.csv results/predictions_B.csv --policy medium
+  # prints per-run P/R/F1 and the number of prediction flips
+  ```
+
+  A large flip count means the model is sensitive to how you phrased the prompt, and you need to decide which phrasing is the fair one (and say so in the writeup) rather than quietly picking the higher score.
 
 ### Building a test set when one doesn't exist
 
@@ -429,7 +431,7 @@ Once labels are filled in:
 python merge_test_set.py
 # combines labelled + redteam into sex_eval/test_set.csv
 cd ..
-python eval_cope.py \
+python eval.py --model shieldstral \
   --test-set sex_eval/test_set.csv \
   --label sex \
   --policies sexual_content_minimal sexual_content_simple sexual_content_medium sexual_content_zentropi_long sexual_content_oai
@@ -450,10 +452,10 @@ To add a new policy variant: drop a markdown file into `eval/policies/` (any str
 To add a new harm domain: build a test CSV with columns `id, content, ground_truth`, write 3–5 policy variants under `eval/policies/`, and run:
 
 ```bash
-python eval_cope.py --test-set path/to/your_test_set.csv --label your_domain --policies policy_a policy_b ...
+python eval.py --model <model> --test-set path/to/your_test_set.csv --label your_domain --policies policy_a policy_b ...
 ```
 
-The harness is policy-agnostic — it just substitutes whatever you put in `policies/<name>.md` into the cope prompt template.
+The harness is policy-agnostic — it hands whatever you put in `policies/<name>.md` to the chosen model's adapter unchanged.
 
 ### Adapting this whole setup for a different model
 
@@ -510,19 +512,28 @@ python eval.py --model safeguard ... --model-arg max_tokens=4096 --model-arg pro
 
 Everything else — the stratified sampler, the red-team construction approach, the merge script, the metrics — generalises without changes. The old `eval_cope.py` and `eval_shieldstral.py` remain in the repo as the worked examples this refactor came from; new work should use `eval.py`.
 
-**A worked example of both adaptations at once** is `eval/eval_shieldstral.py` (round 2): it swaps the prompt template for Shieldstral's `<Instruct>/<Query>/<Document>` format *and* replaces the Modal endpoint with local PyTorch inference entirely — the model is small enough (3B) to run on a laptop, and instead of parsing an emitted token it reads the yes/no logits directly and renormalizes them into a 0–1 score. Same test sets, same policies, same output CSV format, so results drop straight into the comparison tables. One extra step it adds that's worth copying for any new model: a **prompt-format sensitivity check** (run one set × one policy under a plausible alternative format and confirm the numbers don't move much) before trusting the full sweep.
+#### Worked example: the two adapter shapes
+
+The shipped adapters show both transports end to end:
+
+- **Served (`models/cope_b.py`)** — a prompt template plus a couple of defaults, handed to the shared `models/_openai_http.py` helper. `cope_a.py` and `safeguard.py` are near-identical: same helper, different template/endpoint/budget. Start here for anything behind a vLLM endpoint.
+- **Local (`models/shieldstral.py`)** — loads the model with PyTorch/transformers, runs one forward pass, reads the yes/no logits, renormalizes to a 0–1 score, thresholds. No server, no HTTP. Start here for anything small enough to run in-process. It also honors `--model-arg threshold=...` so you can re-threshold without re-running, and `--model-arg device=...` to force cpu/cuda/mps.
+
+Because every adapter returns the same `(pred, raw)` and the harness owns the output format, results from any model drop straight into the same comparison tables — which is what makes cross-model rows in RESULTS.md possible.
 
 ### Files cheat sheet
 
 | File | Purpose |
 |---|---|
-| `serve_cope.py` | Modal deployment recipe — Part 1 |
-| `eval/eval_cope.py` | Eval harness — sends prompts to Modal, writes results |
+| `eval/eval.py` | **The harness** — pick a model with `--model`, writes predictions + summary |
+| `eval/models/*.py` | Per-model adapters (the only per-model code); `_openai_http.py` is a shared helper |
+| `eval/compare_predictions.py` | A/B two runs on one policy — the format-sensitivity check |
+| `eval/probes/selfharm.csv` | Calibration probes, passed via `--probes` |
+| `serve_cope.py` | Modal deployment recipe for served models — Part 1 |
 | `eval/test_set.csv` | Default test set (self-harm, 100 rows; column identifiers sanitized) |
 | `eval/policies/*.md` | Policy variants — one per file, name passed to `--policies` |
 | `eval/results/` | Output CSVs (predictions + summary) timestamped per run |
 | `eval/sex_eval/sample_bsky_for_sex_eval.py` | Stratified Bluesky sampler |
-| `eval/sex_eval/candidates_to_label.csv` | 80 posts to be labelled by hand |
 | `eval/sex_eval/build_redteam.py` | Generates 50 synthetic red-team cases |
-| `eval/sex_eval/redteam_set.csv` | The generated red-team set |
 | `eval/sex_eval/merge_test_set.py` | Combines labelled + red-team into final test set |
+| `eval/eval_cope.py`, `eval/eval_shieldstral.py` | Original single-model scripts, superseded by `eval.py` |
