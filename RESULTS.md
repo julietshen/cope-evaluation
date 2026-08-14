@@ -14,6 +14,7 @@ See [GUIDE.md](GUIDE.md) for the serving + evaluation playbook this report is bu
 - **Cope-a physically cannot use the 1,000-line policy** — Gemma-2's 8K-token context window is a hard architectural ceiling. This is itself a finding for any team considering smaller open models: extremely detailed policies are a deployment constraint.
 - **Both Zentropi-published policies show framework disagreement with externally-labelled test data**, in opposite directions: the self-harm policy is *more conservative* than the test set expects (low recall, high precision), and the sexually-explicit policy is *more aggressive* (high recall, low precision). These reflect deliberate framing choices by Zentropi, not model failures.
 - **The endpoint matters.** Cope-b requires `/v1/chat/completions`; using `/v1/completions` (which works but isn't the supported path) under-reports F1 by roughly **0.05** across policies. Cope-a is a Gemma-2 base model with no chat template — it must use `/v1/completions`. Worth double-checking the endpoint shape for any policy-conditioned classifier you evaluate.
+- **Round 2 (August 2026): Shieldstral-1.0-3B**, run on the same test sets and policies after Mistral's release, slots in just behind cope-b on both domains (best F1 **0.922** self-harm, **0.852** sexual content) — at 3B parameters, running on a laptop, with zero malformed outputs by construction. It is the most policy-literal model of the four: near-useless with a one-line policy (self-harm F1 0.267), best-in-eval appetite for the 1,000-line policy cope-a can't even load. See the round-2 section below.
 
 ## Setup
 
@@ -316,6 +317,71 @@ Cope-a's Gemma-2 base is capped at 8k tokens. The `very_long` self-harm policy (
 ### 4. The endpoint shape changes the numbers
 
 Earlier runs of this same eval used `/v1/completions` (raw text completion) against cope-b. Re-running with the supported `/v1/chat/completions` lifted F1 by **~0.05 across policies on cope-b**, and precision jumped from 0.92 (`full`) to 1.000. Cope's training expects the chat template. Cope-a does not have a chat template (it's a Gemma-2 base + LoRA), so for that model the raw completions endpoint is correct. **For any new policy-conditioned classifier you evaluate, verify which endpoint the model expects before drawing conclusions about its capability.**
+
+## Round 2 (August 2026): Shieldstral-1.0-3B
+
+Mistral released Shieldstral-1.0-3B (Apache 2.0) after the May runs. It is a 3B policy-conditioned safety classifier with a different shape from everything above: it produces a 0–1 score from a **single forward pass** — the yes/no token logits are renormalized into a probability — rather than emitting tokens. No CoT, no sampling, no output parsing. We re-ran both domains, all policies, on the same test sets.
+
+### Setup differences from round 1
+
+| | Round 1 (cope, safeguard) | Round 2 (Shieldstral) |
+|---|---|---|
+| Serving | Modal + vLLM (H100) | **Local** — PyTorch on Apple MPS, bf16 |
+| Prompt | model-specific templates | fixed system message; `<Instruct>` = policy, `<Query>` = "Does the Document violate the policy?", `<Document>` = content |
+| Output | token(s), parsed | yes/no logits → score, threshold 0.5 |
+| Cost | ~$2 GPU time | $0 (≈1–25 s/item on an M-series laptop, scaling with policy length) |
+| Harness | `eval/eval_cope.py` | `eval/eval_shieldstral.py` (same output CSV format) |
+
+**Format check.** Shieldstral's model card illustrates putting a short criterion *in* the Query and using Instruct only for strictness; our multi-page-policy-in-Instruct usage is an extrapolation, so we validated it the same way round 1 validated safeguard's prompt format. Re-running self-harm × `medium` with the criterion summarized into the Query gave identical precision (0.909 vs 0.907) but **recall dropped from 0.780 to 0.600** (10/100 predictions flipped) — compressing a structured policy into one question loses clauses. The policy-in-Instruct + generic-Query configuration used throughout is the stronger one, and its precision is not an artifact of the format. Artefact: `eval/results/shieldstral_formatcheck_sh_medium.csv`.
+
+### Self-harm results
+
+| Policy              | F1        | Precision | Recall    | Errors |
+|---------------------|-----------|-----------|-----------|--------|
+| minimal             | 0.267     | 0.800     | 0.160     | 0      |
+| simple              | 0.535     | **0.905** | 0.380     | 0      |
+| medium              | 0.839     | **0.907** | 0.780     | 0      |
+| full                | 0.839     | **0.907** | 0.780     | 0      |
+| **very_long**       | **0.922** | 0.904     | **0.940** | 0      |
+| zentropi_official   | 0.633     | 0.862     | 0.500     | 0      |
+
+Predictions: `eval/results/predictions_shieldstral_sh_20260814_115944.csv` (the `*_raw` column carries the 0–1 score)
+Summary: `eval/results/summary_shieldstral_sh_20260814_115944.csv`
+
+Cross-model, best policy per model: **cope-b `full` 0.936 > Shieldstral `very_long` 0.922 > safeguard `very_long` 0.854 > cope-a `full` 0.709.**
+
+Three observations:
+
+- **Shieldstral is the most policy-literal model in the eval.** With the one-line `minimal` policy it flags almost nothing (recall 0.16 — worse than every other model). F1 then climbs monotonically with policy detail to the best `very_long` number anyone posted (0.922, recall 0.940). It behaves like safeguard's detail-loving profile taken to the extreme — it brings very little of its own opinion and does close to exactly what the policy says, which cuts both ways.
+- **The 1,000-line policy that hurt cope-b and physically excluded cope-a is Shieldstral's best.** No context ceiling (32k recommended, 256k theoretical), and unlike cope-b — whose F1 dropped 0.06 from `full` to `very_long` — Shieldstral gained 0.08. Teams with maximally detailed house policies finally have a small model that rewards them.
+- **`zentropi_official` lands at 0.633** (precision 0.862, recall 0.500) — right next to safeguard's 0.640 and below cope-b's 0.701. The under-flagging-by-design finding replicates on a third model family: the missed content is the same glorification/recruitment/concealment material the policy deliberately excludes. This is now clearly a property of the policy, not any model.
+
+### Sexually explicit content results
+
+| Policy                          | F1        | Precision | Recall    | Errors |
+|---------------------------------|-----------|-----------|-----------|--------|
+| **sexual_content_minimal**      | **0.852** | **0.821** | 0.885     | 0      |
+| sexual_content_simple           | 0.800     | 0.706     | 0.923     | 0      |
+| sexual_content_medium           | 0.773     | 0.637     | 0.981     | 0      |
+| sexual_content_zentropi_long    | 0.761     | 0.622     | 0.981     | 0      |
+| sexual_content_oai (raw)        | 0.794     | 0.658     | **1.000** | 0      |
+| sexual_content_oai_adapted      | 0.779     | 0.646     | 0.981     | 0      |
+| sexual_content_very_long        | 0.748     | 0.598     | **1.000** | 0      |
+
+Predictions: `eval/results/predictions_shieldstral_sex_20260814_130009.csv`
+Summary: `eval/results/summary_shieldstral_sex_20260814_130009.csv`
+
+Cross-model, best policy per model: **cope-b 0.885 > Shieldstral 0.852 ≈ safeguard 0.847 > cope-a 0.800.**
+
+- **The "short policies win on sex" finding replicates, more sharply than on any round-1 model.** F1 declines monotonically with policy length (0.852 → 0.748), and the mechanism is visible in the columns: recall saturates near 1.0 almost immediately, while precision decays from 0.821 to 0.598 as detail grows. On this domain, every added clause makes Shieldstral flag more — the opposite of cope-b, where `very_long` added only 3 false positives. Combined with the self-harm result, the policy-literalism runs in whichever direction the policy leans: detailed *scoping* policies (self-harm) make it more accurate; detailed *enumeration* policies (sex) make it more aggressive.
+- **The OpenAI-policy format collision disappears.** The unmodified `sexual_content_oai` policy — 29 errors and F1 0.700 on safeguard — produces zero errors and F1 0.794 on Shieldstral. Logit extraction cannot emit a malformed answer, so the embedded `Output: VALID/INVALID` instructions have nothing to break. Across all 1,503 calls in round 2 there were **zero errors**, by construction — the architectural answer to safeguard's 10% malformed-output rate on this set.
+
+### What Shieldstral changes for RMC adopters
+
+- **Cope-b keeps the crown on both domains, but the margin is 0.014–0.033 F1** against a model 1/16th its size that runs on a laptop with no serving stack, no endpoint-shape pitfalls, and no output parsing. For teams that can't run Modal/vLLM or a 50 GB model, Shieldstral is now the obvious self-hosted starting point.
+- **Policy authorship matters more, not less.** Shieldstral amplifies whatever the policy says: a one-liner gives you almost nothing on fuzzy categories, a well-scoped detailed policy gives you the best recall in the eval, and an enumeration-heavy policy makes it over-flag. Pairing it with the wrong off-the-shelf policy moves F1 by 0.65 (self-harm minimal → very_long). The round-1 takeaway — test policies against your own labels — is even more true here.
+- **Thresholding is a free knob the others don't have.** Shieldstral outputs a continuous score (saved in the predictions CSVs); the 0.5 threshold used here is the model card default. A deployment could trade the sex-domain over-flagging back for precision by raising the threshold — no policy rewrite required. We did not tune this; the reported numbers are untuned defaults.
+- Untested: Shieldstral's multimodal (image) input, which would pair with the image-bearing Bluesky content the round-1 sampler had to drop.
 
 ## How this lines up with Zentropi's published benchmark
 

@@ -2,6 +2,8 @@
 
 Evaluation of `zentropi-ai/cope-b-a4b` against two harm domains — self-harm and sexually explicit content — under policy prompts of varying detail. Run in support of ROOST Model Community (RMC) inclusion review.
 
+**Round 2 (August 2026):** `mistralai/Shieldstral-1.0-3B` run on the same test sets and policies, locally (no GPU rental). Best F1 0.922 (self-harm) / 0.852 (sexual content) — just behind cope-b at 1/16th the size. See the round-2 section of RESULTS.md.
+
 ## What's in here
 
 - **[RESULTS.md](RESULTS.md)** — the findings. Per-policy precision/recall/F1, head-to-head against gpt-oss-safeguard, comparison against Zentropi's published benchmark, RMC inclusion recommendation. **Start here.**
@@ -31,6 +33,16 @@ python eval_cope.py --test-set sex_eval/test_set.csv --label sex \
 ```
 
 Expect ~$2 in Modal GPU time for both evals end-to-end.
+
+The round-2 Shieldstral runs need no Modal at all — a venv with `torch` and `transformers>=5` on an Apple-silicon Mac (or any GPU box) is enough:
+
+```bash
+cd eval
+python eval_shieldstral.py --label sh --policies minimal simple medium full very_long zentropi_official
+python eval_shieldstral.py --test-set sex_eval/test_set.csv --label sex \
+  --policies sexual_content_minimal sexual_content_simple sexual_content_medium \
+  sexual_content_zentropi_long sexual_content_oai sexual_content_oai_adapted sexual_content_very_long
+```
 
 ## Provenance and sanitization
 

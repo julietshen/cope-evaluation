@@ -467,6 +467,8 @@ The general recipe — Modal + vLLM + per-policy harness + stratified test set +
 
 Everything else — the stratified sampler, the red-team set construction approach, the merge script, the metrics computation — generalises without changes.
 
+**A worked example of both adaptations at once** is `eval/eval_shieldstral.py` (round 2): it swaps the prompt template for Shieldstral's `<Instruct>/<Query>/<Document>` format *and* replaces the Modal endpoint with local PyTorch inference entirely — the model is small enough (3B) to run on a laptop, and instead of parsing an emitted token it reads the yes/no logits directly and renormalizes them into a 0–1 score. Same test sets, same policies, same output CSV format, so results drop straight into the comparison tables. One extra step it adds that's worth copying for any new model: a **prompt-format sensitivity check** (run one set × one policy under a plausible alternative format and confirm the numbers don't move much) before trusting the full sweep.
+
 ### Files cheat sheet
 
 | File | Purpose |
