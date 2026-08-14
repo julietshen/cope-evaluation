@@ -457,15 +457,58 @@ The harness is policy-agnostic — it just substitutes whatever you put in `poli
 
 ### Adapting this whole setup for a different model
 
-The general recipe — Modal + vLLM + per-policy harness + stratified test set + synthetic red-team — works for any policy-conditioned classifier. To swap cope for, e.g., gpt-oss-safeguard or Llama-Guard, change three things:
+The `eval_cope.py` / `eval_shieldstral.py` split proved the pattern, then got refactored into a single generalized harness (`eval/eval.py`) so adding a model is writing one small adapter file rather than copying a script. **This is the recommended path for any new model.**
 
-1. **`serve_cope.py`** — rename to `serve_<model>.py`, update `MODEL_NAME`, `GPU_CONFIG`, `MAX_MODEL_LEN`, app name (`modal.App("...")`), and Modal secret name. Check the model card for any required vLLM flags.
+#### The generalized harness (`eval/eval.py` + `eval/models/`)
 
-2. **`eval_cope.py`'s prompt template** — replace the `INSTRUCTIONS / POLICY / CONTENT / ANSWER` block with whatever the model expects. For chat-based models, also swap `/v1/completions` for `/v1/chat/completions` and reshape the request body to `messages=[{"role": "system", ...}, {"role": "user", ...}]`. Update the output parsing to match the model's expected response shape (single token vs structured JSON vs label string).
+The core (`eval.py`) owns everything model-agnostic: the test-set schema (`id, content, ground_truth`), policy loading, per-policy checkpointing (resume after an interrupt), one automatic retry on empty responses, optional calibration probes, metrics with explicit error accounting, and the shared `predictions_*.csv` / `summary_*.csv` output format. It never knows how any specific model works.
 
-3. **`policies/*.md`** — most policy text is portable across models, but the *format* the model was trained on may matter. Cope was fine-tuned on the zentropi-style Includes/Excludes structure; Llama-Guard expects a numbered taxonomy. Look at each model's example prompts.
+Each model is an **adapter** under `eval/models/` — a module exposing:
 
-Everything else — the stratified sampler, the red-team set construction approach, the merge script, the metrics computation — generalises without changes.
+```python
+NAME = "my-model-1.0"
+SUPPORTS_CONCURRENCY = True    # True for HTTP endpoints, False for local inference
+
+def make_classifier(opts: dict):
+    # opts comes from --model-arg KEY=VALUE flags, merged over the adapter's DEFAULTS
+    def classify(policy_text, content, attempt=0):
+        # ... call the model ...
+        # return (pred, raw): pred in {"1", "0", ""};  raw is the model's output,
+        # or "score=<0-1>" for score-based models.  attempt>0 means the harness is
+        # retrying an empty answer, so you may raise the output budget here.
+        return pred, raw
+    return classify
+```
+
+The four shipped adapters cover the three transport shapes you'll encounter:
+
+- `models/cope_b.py`, `models/cope_a.py`, `models/safeguard.py` — HTTP against an OpenAI-compatible vLLM endpoint, via the shared `models/_openai_http.py` helper (handles chat-vs-completions detection and 0/1 parsing). These differ only in a prompt template and a few defaults.
+- `models/shieldstral.py` — **local inference**, no server at all: loads the model with PyTorch/transformers and reads the yes/no logits in-process. This is the template for any laptop-runnable model.
+
+Run any of them the same way:
+
+```bash
+python eval.py --model shieldstral --label sh \
+  --policies minimal simple medium full very_long zentropi_official \
+  --probes probes/selfharm.csv
+python eval.py --model cope_b --test-set sex_eval/test_set.csv --label sex \
+  --policies sexual_content_minimal ... --concurrency 16
+# override any adapter default without editing code:
+python eval.py --model safeguard ... --model-arg max_tokens=4096 --model-arg prompt_style=chat
+```
+
+**To add a model:** copy the closest adapter (HTTP → start from `cope_b.py`; local → start from `shieldstral.py`), change the prompt template, the transport defaults, and the answer parsing. Nothing else moves. If it's served, you still stand up a `serve_<model>.py` on Modal as in Part 1 and point the adapter's `endpoint` default at it.
+
+#### Two habits baked into the core — use them
+
+- **Calibration probes (`--probes`)** run a tiny labelled set (one explicit violation, one neutral, one safe near-miss like a recovery post) *before* the sweep and abort if the result comes out fully inverted. This is what caught Shieldstral's score orientation early; it's free insurance against a broken template burning a full run. A starter set is at `eval/probes/selfharm.csv`.
+- **Format-sensitivity checks (`compare_predictions.py`)** re-run one set × one policy under an alternative prompt phrasing and report the P/R/F1 delta and prediction flips. We used this twice to earn trust in the numbers (raw-vs-harmony for safeguard, criterion-in-Query for Shieldstral). Do it for any new model before believing its sweep:
+
+  ```bash
+  python compare_predictions.py results/predictions_A.csv results/predictions_B.csv --policy medium
+  ```
+
+Everything else — the stratified sampler, the red-team construction approach, the merge script, the metrics — generalises without changes. The old `eval_cope.py` and `eval_shieldstral.py` remain in the repo as the worked examples this refactor came from; new work should use `eval.py`.
 
 **A worked example of both adaptations at once** is `eval/eval_shieldstral.py` (round 2): it swaps the prompt template for Shieldstral's `<Instruct>/<Query>/<Document>` format *and* replaces the Modal endpoint with local PyTorch inference entirely — the model is small enough (3B) to run on a laptop, and instead of parsing an emitted token it reads the yes/no logits directly and renormalizes them into a 0–1 score. Same test sets, same policies, same output CSV format, so results drop straight into the comparison tables. One extra step it adds that's worth copying for any new model: a **prompt-format sensitivity check** (run one set × one policy under a plausible alternative format and confirm the numbers don't move much) before trusting the full sweep.
 
