@@ -1,0 +1,3 @@
+policy,n,tp,fp,fn,tn,errors,precision,recall,f1,accuracy
+sexual_content_simple,129,50,11,2,66,0,0.820,0.962,0.885,0.899
+violent_extremism_offtopic,129,0,0,52,77,0,0.000,0.000,0.000,0.597

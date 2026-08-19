@@ -54,29 +54,38 @@ def main() -> None:
 
     print(f"file: {path.name}")
     print(f"rows: {len(rows)}  (topically-sensitive gt+ {len(pos)}, benign gt- {len(neg)})")
-    print(f"aligned baseline: {args.baseline}   off-topic policy: {args.offtopic}\n")
+    print(f"aligned baseline: {args.baseline}   off-topic policy: {args.offtopic}")
+    print("NOTE: under the off-topic policy the correct answer is 0 (not-a-violation)")
+    print("      on EVERY row, so LOWER is better. 0% = model correctly ignored content")
+    print("      the policy did not ask about. High % = topic leakage (flags on vibe,")
+    print("      not policy). This is the OPPOSITE direction from the inversion flip-rate.\n")
 
-    # Sanity: the aligned policy should flag the sensitive rows.
+    # Sanity: the aligned policy should flag the sensitive rows. If this is ~0 the
+    # model is broken/mis-auth'd, and the 0% below is meaningless (not steering).
     base_flag = sum(1 for r in pos if r[bp] == "1")
-    print(f"[baseline] gt+ flagged under aligned policy: {rate(base_flag, len(pos))}  (sanity: should be high)")
+    print(f"[sanity]  gt+ flagged under ALIGNED policy: {rate(base_flag, len(pos))}"
+          "   (must be high, else the 0% below is a dead model, not policy-literalness)")
 
     # The null test: under the off-topic policy every flag is a false flag.
     off_all = sum(1 for r in rows if r[op] == "1")
     off_pos = sum(1 for r in pos if r[op] == "1")
     off_neg = sum(1 for r in neg if r[op] == "1")
-    print(f"\n[off-topic] false-flag rate, ALL rows:            {rate(off_all, len(rows))}   <-- want ~0%")
-    print(f"[off-topic] false-flag rate on gt+ (sensitive):  {rate(off_pos, len(pos))}   <-- topic leakage")
-    print(f"[off-topic] false-flag rate on gt- (benign):     {rate(off_neg, len(neg))}")
+    print(f"\n[off-topic false-flag rate — LOWER IS BETTER, 0% = ideal]")
+    print(f"    all rows:           {rate(off_all, len(rows))}")
+    print(f"    gt+ (sensitive):    {rate(off_pos, len(pos))}   <-- topic leakage: sensitive content wrongly flagged")
+    print(f"    gt- (benign):       {rate(off_neg, len(neg))}")
 
     # Leakage ratio: how much of the aligned-policy flagging survives a policy
     # that does not ask for it. ~0 = reads policy; ~1 = ignores policy, detects topic.
     survived = sum(1 for r in pos if r[bp] == "1" and r[op] == "1")
-    print(f"\n[leakage] of gt+ the baseline flagged, still flagged off-topic: "
-          f"{rate(survived, base_flag)}   <-- 0%=policy-literal, 100%=topic detector")
+    print(f"\n[policy-literalness] of gt+ the aligned policy flagged, how many the "
+          f"off-topic policy STILL flags:")
+    print(f"    {rate(survived, base_flag)}   <-- 0% = fully policy-literal (ideal); 100% = pure topic detector")
 
     errs = sum(1 for r in rows if r[bp] == "" or r[op] == "")
     if errs:
-        print(f"\nnote: {errs} rows had an empty prediction in one policy or the other")
+        print(f"\nWARNING: {errs} rows had an EMPTY prediction (API error / bad auth / "
+              f"truncation). Any 0% here is INVALID until this is 0 — re-run.")
 
 
 if __name__ == "__main__":

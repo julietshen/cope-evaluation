@@ -1,0 +1,85 @@
+model=cope-a-9b  rows=100  policies=['simple', 'violent_extremism_offtopic']  concurrency=16
+[simple] 25/100 (0.11/s, eta 12 min)
+[simple] 50/100 (0.22/s, eta 4 min)
+[simple] 75/100 (0.32/s, eta 1 min)
+[simple] 100/100 (0.42/s, eta 0 min)
+[simple] complete
+[violent_extremism_offtopic] 25/100 (5.66/s, eta 0 min)
+[violent_extremism_offtopic] 50/100 (7.27/s, eta 0 min)
+[violent_extremism_offtopic] 75/100 (8.39/s, eta 0 min)
+[violent_extremism_offtopic] 100/100 (9.26/s, eta 0 min)
+[violent_extremism_offtopic] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_cope_a_cope_a_sh_offtopic_20260819_145713.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+simple                                100   23    2   27   48    0  0.920  0.460  0.613  0.710
+violent_extremism_offtopic            100    0    0   50   50    0  0.000  0.000  0.000  0.500
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_cope_a_cope_a_sh_offtopic_20260819_145713.csv
+model=cope-a-9b  rows=129  policies=['sexual_content_simple', 'violent_extremism_offtopic']  concurrency=16
+[sexual_content_simple] 25/129 (6.72/s, eta 0 min)
+[sexual_content_simple] 50/129 (8.68/s, eta 0 min)
+[sexual_content_simple] 75/129 (9.27/s, eta 0 min)
+[sexual_content_simple] 100/129 (9.18/s, eta 0 min)
+[sexual_content_simple] 125/129 (9.64/s, eta 0 min)
+[sexual_content_simple] 129/129 (9.88/s, eta 0 min)
+[sexual_content_simple] complete
+[violent_extremism_offtopic] 25/129 (6.58/s, eta 0 min)
+[violent_extremism_offtopic] 50/129 (8.69/s, eta 0 min)
+[violent_extremism_offtopic] 75/129 (9.36/s, eta 0 min)
+[violent_extremism_offtopic] 100/129 (9.25/s, eta 0 min)
+[violent_extremism_offtopic] 125/129 (9.47/s, eta 0 min)
+[violent_extremism_offtopic] 129/129 (9.75/s, eta 0 min)
+[violent_extremism_offtopic] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_cope_a_cope_a_sex_offtopic_20260819_145740.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+sexual_content_simple                 129   38    5   14   72    0  0.884  0.731  0.800  0.853
+violent_extremism_offtopic            129    0    0   52   77    0  0.000  0.000  0.000  0.597
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_cope_a_cope_a_sex_offtopic_20260819_145740.csv
+model=cope-b-a4b  rows=100  policies=['simple', 'violent_extremism_offtopic']  concurrency=16
+[simple] 25/100 (0.09/s, eta 14 min)
+[simple] 50/100 (0.18/s, eta 5 min)
+[simple] 75/100 (0.27/s, eta 2 min)
+[simple] 100/100 (0.36/s, eta 0 min)
+[simple] complete
+[violent_extremism_offtopic] 25/100 (5.68/s, eta 0 min)
+[violent_extremism_offtopic] 50/100 (8.06/s, eta 0 min)
+[violent_extremism_offtopic] 75/100 (8.19/s, eta 0 min)
+[violent_extremism_offtopic] 100/100 (8.95/s, eta 0 min)
+[violent_extremism_offtopic] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_cope_b_cope_b_sh_offtopic_20260819_150232.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+simple                                100   32    0   18   50    0  1.000  0.640  0.780  0.820
+violent_extremism_offtopic            100    0    0   50   50    0  0.000  0.000  0.000  0.500
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_cope_b_cope_b_sh_offtopic_20260819_150232.csv
+model=cope-b-a4b  rows=129  policies=['sexual_content_simple', 'violent_extremism_offtopic']  concurrency=16
+[sexual_content_simple] 25/129 (7.02/s, eta 0 min)
+[sexual_content_simple] 50/129 (10.37/s, eta 0 min)
+[sexual_content_simple] 75/129 (13.67/s, eta 0 min)
+[sexual_content_simple] 100/129 (12.88/s, eta 0 min)
+[sexual_content_simple] 125/129 (12.76/s, eta 0 min)
+[sexual_content_simple] 129/129 (12.77/s, eta 0 min)
+[sexual_content_simple] complete
+[violent_extremism_offtopic] 25/129 (8.79/s, eta 0 min)
+[violent_extremism_offtopic] 50/129 (13.13/s, eta 0 min)
+[violent_extremism_offtopic] 75/129 (14.90/s, eta 0 min)
+[violent_extremism_offtopic] 100/129 (14.94/s, eta 0 min)
+[violent_extremism_offtopic] 125/129 (14.35/s, eta 0 min)
+[violent_extremism_offtopic] 129/129 (14.66/s, eta 0 min)
+[violent_extremism_offtopic] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_cope_b_cope_b_sex_offtopic_20260819_150251.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+sexual_content_simple                 129   50   11    2   66    0  0.820  0.962  0.885  0.899
+violent_extremism_offtopic            129    0    0   52   77    0  0.000  0.000  0.000  0.597
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_cope_b_cope_b_sex_offtopic_20260819_150251.csv
+ALL FOUR COPE OFFTOPIC LEGS DONE
