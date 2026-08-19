@@ -19,8 +19,8 @@ messages. The caveats:
    aggregators (`top_k_mean`, `max_score`) dominate everywhere we measured.
 2. **Real-world precision is unmeasurable with the data that exists today.**
    Every negative example available (synthetic innocuous chat) is stylistically
-   unlike real casual chat — on real PJ logs, generic messages like "cool" and
-   "whats up" score nearly as high as actual grooming lines. Recall claims
+   unlike real casual chat — on real PJ logs, single-word greetings and
+   casual filler score nearly as high as actual grooming lines. Recall claims
    survive this evaluation; precision claims cannot be made until the index and
    thresholds are calibrated against real platform traffic.
 
@@ -122,13 +122,13 @@ within the first one or two windows. A median 23% of each predator's messages
 score above the per-message threshold.
 
 The asterisk, seen by inspecting top-scoring lines: genuine grooming probes
-score highest ("do u like holding hands?", "wouldn't your parents be mad
-though?", "so mom can not come to ur room now?"), but generic casual lines
-("cool", "whats up") score nearly as high (0.27–0.30). The synthetic innocuous
+score highest (physical-contact questions, checks on whether a parent is
+nearby or can enter the child's room), but generic one-word greetings and
+casual filler score nearly as high (0.27–0.30). The synthetic innocuous
 negatives are hobby-focused, well-punctuated prose, so the index has partly
 learned *casual chat register* as a grooming feature. Real innocuous teen chat
-— full of "cool" and "whats up" — would fire far more often than our synthetic
-negatives suggest. Two further reasons to treat PJ numbers as an upper bound:
+— full of exactly that casual filler — would fire far more often than our
+synthetic negatives suggest. Two further reasons to treat PJ numbers as an upper bound:
 PJ conversations were included in the Gemma3 prompt that generated the index
 seeds (style contamination), and PJ decoy logs are unusually grooming-dense
 because the decoys never discourage the predator.
