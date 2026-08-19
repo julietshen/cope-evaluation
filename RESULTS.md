@@ -378,6 +378,22 @@ Cross-model, best policy per model: **cope-b 0.885 > Shieldstral 0.852 ≈ safeg
 - **The "short policies win on sex" finding replicates, more sharply than on any round-1 model.** F1 declines monotonically with policy length (0.852 → 0.748), and the mechanism is visible in the columns: recall saturates near 1.0 almost immediately, while precision decays from 0.821 to 0.598 as detail grows. On this domain, every added clause makes Shieldstral flag more — the opposite of cope-b, where `very_long` added only 3 false positives. Combined with the self-harm result, the policy-literalism runs in whichever direction the policy leans: detailed *scoping* policies (self-harm) make it more accurate; detailed *enumeration* policies (sex) make it more aggressive.
 - **The OpenAI-policy format collision disappears.** The unmodified `sexual_content_oai` policy — 29 errors and F1 0.700 on safeguard — produces zero errors and F1 0.794 on Shieldstral. Logit extraction cannot emit a malformed answer, so the embedded `Output: VALID/INVALID` instructions have nothing to break. Across all 1,503 calls in round 2 there were **zero errors**, by construction — the architectural answer to safeguard's 7% empty-response rate on this set (see the corrected round-1 bullet above: those failures are reasoning-budget truncations that return empty final answers).
 
+### Finding: strictness instructions move the threshold the wrong way
+
+Round 2 notes that Shieldstral exposes a continuous score, so its 0.5 decision threshold is a free tuning knob. A separate question is whether that threshold can be moved through the *policy* — by instructing the model to be more or less strict at constant scope. On this test set it cannot. Three sexual-content policies identical in scope, varying only the stated threshold, on the same 129-row set:
+
+| Policy (instruction)                        | Flagged | F1    | Precision | Recall    | Errors |
+|---------------------------------------------|---------|-------|-----------|-----------|--------|
+| sexual_content_lenient (flag only graphic)  | 75      | 0.803 | 0.680     | **0.981** | 0      |
+| sexual_content_simple (baseline)            | 68      | 0.800 | 0.706     | 0.923     | 0      |
+| sexual_content_strict (flag any hint)       | 60      | **0.821** | **0.767** | 0.885 | 0      |
+
+- The flag count moves *opposite* the instruction: the "lenient" policy produced the most flags (75) and the "strict" policy the fewest (60). Telling the model to catch "any hint, however mild" made it flag less, not more.
+- The `simple` row reproduces the round-2 sexual baseline exactly (F1 0.800, precision 0.706, recall 0.923), confirming the three runs differ only by the strictness wording.
+- Practical implication for the thresholding point below: to calibrate Shieldstral's aggressiveness, move the numeric score threshold (a real, monotonic knob), not the policy's strictness language — natural-language strictness is not a reliable dial for this model. Whether the same holds for the policy-conditioned models (cope, safeguard) was not tested here.
+
+Predictions: `eval/results/predictions_shieldstral_shieldstral_strictness_20260819_163400.csv`
+
 ### What Shieldstral changes for RMC adopters
 
 - **Cope-b keeps the crown on both domains, but the margin is 0.014–0.033 F1** against a model 1/16th its size that runs on a laptop with no serving stack, no endpoint-shape pitfalls, and no output parsing. For teams that can't run Modal/vLLM or a 50 GB model, Shieldstral is now the obvious self-hosted starting point.
