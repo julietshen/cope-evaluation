@@ -1,0 +1,20 @@
+Loading weights:   0%|          | 0/458 [00:00<?, ?it/s]Loading weights: 100%|██████████| 458/458 [00:00<00:00, 5857.84it/s]
+model=Shieldstral-1.0-3B  rows=100  policies=['simple', 'violent_extremism_offtopic']  concurrency=1
+[simple] 25/100 (4.01/s, eta 0 min)
+[simple] 50/100 (4.42/s, eta 0 min)
+[simple] 75/100 (4.56/s, eta 0 min)
+[simple] 100/100 (4.57/s, eta 0 min)
+[simple] complete
+[violent_extremism_offtopic] 25/100 (2.98/s, eta 0 min)
+[violent_extremism_offtopic] 50/100 (2.95/s, eta 0 min)
+[violent_extremism_offtopic] 75/100 (2.92/s, eta 0 min)
+[violent_extremism_offtopic] 100/100 (2.91/s, eta 0 min)
+[violent_extremism_offtopic] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_shieldstral_shieldstral_sh_offtopic_20260818_214456.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+simple                                100   19    2   31   48    0  0.905  0.380  0.535  0.670
+violent_extremism_offtopic            100    6    0   44   50    0  1.000  0.120  0.214  0.560
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_shieldstral_shieldstral_sh_offtopic_20260818_214456.csv

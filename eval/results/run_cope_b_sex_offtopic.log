@@ -1,0 +1,23 @@
+model=cope-b-a4b  rows=129  policies=['sexual_content_simple', 'violent_extremism_offtopic']  concurrency=16
+[sexual_content_simple] 25/129 (5.40/s, eta 0 min)
+[sexual_content_simple] 50/129 (5.75/s, eta 0 min)
+[sexual_content_simple] 75/129 (6.35/s, eta 0 min)
+[sexual_content_simple] 100/129 (5.96/s, eta 0 min)
+[sexual_content_simple] 125/129 (6.35/s, eta 0 min)
+[sexual_content_simple] 129/129 (6.51/s, eta 0 min)
+[sexual_content_simple] complete
+[violent_extremism_offtopic] 25/129 (4.50/s, eta 0 min)
+[violent_extremism_offtopic] 50/129 (4.83/s, eta 0 min)
+[violent_extremism_offtopic] 75/129 (5.60/s, eta 0 min)
+[violent_extremism_offtopic] 100/129 (5.45/s, eta 0 min)
+[violent_extremism_offtopic] 125/129 (5.75/s, eta 0 min)
+[violent_extremism_offtopic] 129/129 (5.91/s, eta 0 min)
+[violent_extremism_offtopic] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_cope_b_cope_b_sex_offtopic_20260818_215038.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+sexual_content_simple                 129    0    0    0    0  129  0.000  0.000  0.000  0.000
+violent_extremism_offtopic            129    0    0    0    0  129  0.000  0.000  0.000  0.000
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_cope_b_cope_b_sex_offtopic_20260818_215038.csv

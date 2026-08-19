@@ -1,0 +1,19 @@
+model=cope-b-a4b  rows=100  policies=['simple', 'violent_extremism_offtopic']  concurrency=16
+[simple] 25/100 (6.01/s, eta 0 min)
+[simple] 50/100 (5.87/s, eta 0 min)
+[simple] 75/100 (6.17/s, eta 0 min)
+[simple] 100/100 (6.43/s, eta 0 min)
+[simple] complete
+[violent_extremism_offtopic] 25/100 (4.51/s, eta 0 min)
+[violent_extremism_offtopic] 50/100 (4.70/s, eta 0 min)
+[violent_extremism_offtopic] 75/100 (4.86/s, eta 0 min)
+[violent_extremism_offtopic] 100/100 (5.30/s, eta 0 min)
+[violent_extremism_offtopic] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_cope_b_cope_b_sh_offtopic_20260818_214956.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+simple                                100    0    0    0    0  100  0.000  0.000  0.000  0.000
+violent_extremism_offtopic            100    0    0    0    0  100  0.000  0.000  0.000  0.000
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_cope_b_cope_b_sh_offtopic_20260818_214956.csv
