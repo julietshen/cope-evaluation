@@ -1,0 +1,19 @@
+model=cope-a-9b  rows=100  policies=['simple', 'selfharm_inverted']  concurrency=16
+[simple] 25/100 (0.11/s, eta 11 min)
+[simple] 50/100 (0.23/s, eta 4 min)
+[simple] 75/100 (0.34/s, eta 1 min)
+[simple] 100/100 (0.45/s, eta 0 min)
+[simple] complete
+[selfharm_inverted] 25/100 (8.73/s, eta 0 min)
+[selfharm_inverted] 50/100 (9.87/s, eta 0 min)
+[selfharm_inverted] 75/100 (10.39/s, eta 0 min)
+[selfharm_inverted] 100/100 (11.49/s, eta 0 min)
+[selfharm_inverted] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_cope_a_sh_steer_20260818_190438.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+simple                                100   23    2   27   48    0  0.920  0.460  0.613  0.710
+selfharm_inverted                     100    0    4   50   46    0  0.000  0.000  0.000  0.460
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_cope_a_sh_steer_20260818_190438.csv

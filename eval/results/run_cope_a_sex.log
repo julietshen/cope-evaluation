@@ -1,0 +1,23 @@
+model=cope-a-9b  rows=129  policies=['sexual_content_simple', 'sexual_content_inverted']  concurrency=16
+[sexual_content_simple] 25/129 (8.63/s, eta 0 min)
+[sexual_content_simple] 50/129 (11.09/s, eta 0 min)
+[sexual_content_simple] 75/129 (11.45/s, eta 0 min)
+[sexual_content_simple] 100/129 (11.35/s, eta 0 min)
+[sexual_content_simple] 125/129 (11.77/s, eta 0 min)
+[sexual_content_simple] 129/129 (12.10/s, eta 0 min)
+[sexual_content_simple] complete
+[sexual_content_inverted] 25/129 (13.60/s, eta 0 min)
+[sexual_content_inverted] 50/129 (14.24/s, eta 0 min)
+[sexual_content_inverted] 75/129 (12.49/s, eta 0 min)
+[sexual_content_inverted] 100/129 (12.37/s, eta 0 min)
+[sexual_content_inverted] 125/129 (12.66/s, eta 0 min)
+[sexual_content_inverted] 129/129 (13.03/s, eta 0 min)
+[sexual_content_inverted] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_cope_a_sex_steer_20260818_190458.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+sexual_content_simple                 129   38    5   14   72    0  0.884  0.731  0.800  0.853
+sexual_content_inverted               129    3    2   49   75    0  0.600  0.058  0.105  0.605
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_cope_a_sex_steer_20260818_190458.csv

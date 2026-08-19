@@ -1,0 +1,7 @@
+✓ Created objects.
+├── 🔨 Created mount /Users/julietshen/ROOST/vibecheck/serve_cope.py
+├── 🔨 Created function download_model.
+└── 🔨 Created web function serve => https://juliet--cope-b-a4b-serve.modal.run
+✓ App deployed in 1.069s! 🎉
+
+View Deployment: https://modal.com/apps/juliet/main/deployed/cope-b-a4b
