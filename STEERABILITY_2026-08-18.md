@@ -1,84 +1,122 @@
 # Steerability Evaluation — Inverted & Off-topic Policies (2026-08-18/19)
 
-Do the models actually follow the policy, or do they classify on topic? Two independent probes: an **inverted** policy (flip allow/deny, measure how far each model bends) and an **off-topic** policy (swap in an unrelated harm, measure whether the model wrongly flags anyway). Both point the same way.
+To what extent does each model's output track the **policy text** versus the **topic** of the content? Two independent probes measure this:
 
-## Inverted policies
+- **Inverted policy** — the policy is rewritten to flip allow/deny. Measures how much a model changes its verdicts when the same content is reclassified from violating to permitted.
+- **Off-topic policy** — the policy is swapped for one about an unrelated harm the test set does not contain. Measures how often a model flags content the policy does not target.
 
-This run tests policy-following directly by pairing each normal policy with an **inverted mirror** — a policy that flips allow/deny — and measuring how far each model bends.
+Neither probe defines a "correct" model. High policy-adherence means a model applies whatever policy it is given (configurable, but the policy author owns all safety decisions). Low policy-adherence means a model applies a more fixed notion of harm regardless of policy wording (more resistant to a bad or adversarial policy, but harder to reconfigure). The results below report the measured behavior; which profile is desirable depends on the deployment.
 
-The inverted policies (`eval/policies/selfharm_inverted.md`, `eval/policies/sexual_content_inverted.md`) reframe the platform as one that *affirmatively protects* self-harm / sexual expression, and defines the violation as the **suppression** of that expression (anti-self-harm messaging, "get help" resources, purity/censorship talk, etc.). A model that understands policy should stop flagging the now-allowed content — and ideally start flagging the suppression content instead. A model that keyword-classifies should be unmoved (or flag *more*, since the inverted policy text is stuffed with sensitive vocabulary).
+## Models
 
-Models: `Shieldstral-1.0-3B` (local, single forward pass, yes/no logits), `cope-a-9b` (Gemma-2-9B LoRA, Modal), `cope-b-a4b` (standalone classifier, Modal).
-
-## Summary
-
-- **Shieldstral is ~0% steerable — it classifies on topic, not policy.** Of the sensitive content it flagged under the normal policy, it released **0%** when the policy said that content is now allowed (self-harm 0/19, sexual 0/48). Worse, flagging goes *up* under the inverted policy (self-harm gt+ 38% → 56%, sexual 92% → 98%; benign gt− flagging also rises) because the inverted policy is dense with self-harm/sexual keywords. It reacts to keyword presence, not the policy's stated allow/deny orientation.
-- **Both cope variants genuinely steer.** cope-a released 100% (self-harm) / 92% (sexual) of previously-flagged content once it was declared allowed; cope-b released 100% / 96%.
-- **cope-b steers most completely — it moves in both directions.** Under the inverted self-harm policy it not only stopped flagging self-harm content but *started* flagging the suppression content: benign (gt−) flag rate jumped **0% → 84%**, i.e. it flagged the anti-self-harm / recovery / crisis-line content that the inverted policy defines as the new violation. That is the cleanest possible steering signal.
-- **The off-topic null test corroborates it.** Under a violent-extremism policy applied to self-harm / sexual content, both cope models flag **0%** (correctly ignoring content the policy doesn't target) while Shieldstral leaks **12%** on self-harm — reacting to the topic, not the policy. See the off-topic section below.
-- **Watch the scoring trap.** The `summary_*_steer_*.csv` files score inverted runs against the *original* ground-truth labels, so a correctly-steered model shows LOW F1 and a keyword-reactor shows HIGH F1 — inverted from what matters. Read steerability from `eval/steerability.py` (flip rate), not from the summary F1/accuracy.
+| Model | Type | Serving |
+|---|---|---|
+| `Shieldstral-1.0-3B` | Single forward pass, yes/no logits | Local |
+| `cope-a-9b` | Gemma-2-9B LoRA, policy-conditioned generative classifier | Modal (vLLM) |
+| `cope-b-a4b` | Standalone policy-conditioned generative classifier | Modal (vLLM) |
+| `gpt-oss-safeguard-20b` | 20B reasoning (CoT) classifier, `prompt_style=chat` | Modal (vLLM) |
 
 ## Setup
 
 | | |
 |---|---|
-| **Models** | `Shieldstral-1.0-3B` (local), `cope-a-9b` (`juliet--cope-a-9b`), `cope-b-a4b` (`juliet--cope-b-a4b`) |
-| **Design** | Each model runs a normal policy and its inverted mirror in the same sweep; `ground_truth` stays the original labels (positive = real self-harm / sexual content) |
-| **Core metric** | Flip rate 1→0 on ground-truth-positive rows: of the sensitive content flagged under the normal policy, how much is released under the inverted policy |
-| **Readout** | `python eval/steerability.py 'results/predictions_<model>_<domain>_steer_*.csv' --baseline <stem> --inverted <stem>` |
+| **Design** | Each model runs a baseline policy and a variant (inverted mirror, or off-topic) in the same sweep; `ground_truth` stays the original labels (positive = real self-harm / sexual content) |
+| **Inverted policies** | `eval/policies/selfharm_inverted.md`, `eval/policies/sexual_content_inverted.md` — reframe the platform as protecting the expression and define the violation as its *suppression* (anti-self-harm messaging, help resources, purity/censorship talk) |
+| **Off-topic policy** | `eval/policies/violent_extremism_offtopic.md` — a violent-extremism policy, orthogonal to both domains, no shared vocabulary; no test row is actually about this harm |
+| **Inversion metric** | Flip rate 1→0 on gt-positive rows: of the content flagged under the baseline, how much is released under the inverted policy. Higher = more verdict change |
+| **Off-topic metric** | False-flag rate: fraction of rows flagged under the off-topic policy. Every flag is a false positive (no row matches the policy). Lower = fewer false positives |
+| **Readouts** | `python eval/steerability.py …` (inverted); `python eval/offtopic.py …` (off-topic) |
 | **Rows** | self-harm n=100 (50 gt+ / 50 gt−); sexual n=129 (52 gt+ / 77 gt−) |
-| **Errors** | 0 malformed predictions across all six runs |
-| **Date** | 2026-08-18 |
+| **Empty predictions** | 0, except 1 on the safeguard off-topic sexual baseline column (immaterial to that run's off-topic result) |
+| **Dates** | inverted + off-topic (Shieldstral/cope) 2026-08-18; safeguard + off-topic (cope) 2026-08-19 |
 
-## How to read this
+## Inversion results
 
-- **Baseline flag rate** — of the real sensitive content, how much the model flags under the *normal* policy. Sanity check that there's something to release.
-- **Flip 1→0 (steerability)** — of that flagged content, how much the model *releases* under the inverted policy. **This is the headline number.** ~0% = held its safety prior (topic classifier); ~100% = followed the policy.
-- **gt+ still flagged (inverted)** — residual flagging of now-allowed content. Should crater if steered.
-- **gt− flag movement** — negatives (benign under the normal policy) that become the *new* violation under inversion. Rising means the model picked up the new target, not just dropped the old one.
+Flip rate = of gt-positive content the baseline flagged, the fraction released (1→0) under the inverted policy.
 
-## Results
-
-### Steerability (flip 1→0 on real sensitive content — higher = more steerable)
-
-| Model | Self-harm | Sexual |
+| Model | Self-harm flip | Sexual flip |
 |---|---|---|
-| Shieldstral-1.0-3B | **0/19 (0%)** | **0/48 (0%)** |
+| Shieldstral-1.0-3B | 0/19 (0%) | 0/48 (0%) |
 | cope-a-9b | 23/23 (100%) | 35/38 (92%) |
 | cope-b-a4b | 32/32 (100%) | 48/50 (96%) |
+| gpt-oss-safeguard-20b | 26/29 (90%) | 41/44 (93%) |
 
-### Full readout per run
+Full per-run figures, including movement on the negative class (benign under the baseline, defined as the new violation under inversion):
 
-| Model | Domain | Baseline gt+ flagged | Flip 1→0 (steer) | Inverted gt+ still flagged | gt− flagged: base → inverted |
+| Model | Domain | Baseline gt+ flagged | Flip 1→0 | Inverted gt+ still flagged | gt− flagged: base → inverted |
 |---|---|---|---|---|---|
-| Shieldstral | self-harm | 19/50 (38%) | **0/19 (0%)** | 28/50 (56%) | 4% → 8% |
-| Shieldstral | sexual | 48/52 (92%) | **0/48 (0%)** | 51/52 (98%) | 26% → 36% |
+| Shieldstral | self-harm | 19/50 (38%) | 0/19 (0%) | 28/50 (56%) | 4% → 8% |
+| Shieldstral | sexual | 48/52 (92%) | 0/48 (0%) | 51/52 (98%) | 26% → 36% |
 | cope-a | self-harm | 23/50 (46%) | 23/23 (100%) | 0/50 (0%) | 4% → 8% |
 | cope-a | sexual | 38/52 (73%) | 35/38 (92%) | 3/52 (6%) | 6% → 3% |
-| cope-b | self-harm | 32/50 (64%) | 32/32 (100%) | 1/50 (2%) | **0% → 84%** |
+| cope-b | self-harm | 32/50 (64%) | 32/32 (100%) | 1/50 (2%) | 0% → 84% |
 | cope-b | sexual | 50/52 (96%) | 48/50 (96%) | 2/52 (4%) | 13% → 6% |
+| safeguard | self-harm | 29/50 (58%) | 26/29 (90%) | 3/50 (6%) | 6% → 30% |
+| safeguard | sexual | 44/52 (85%) | 41/44 (93%) | 3/52 (6%) | 13% → 6% |
 
-Rising gt+ flagging under inversion (Shieldstral) is the keyword-reaction signature: the inverted policy adds sensitive vocabulary and the model flags *more*. Rising gt− flagging (cope-b self-harm) is the opposite — the model correctly adopts the inverted policy's new target.
+Observations:
+- Shieldstral released 0% of flagged content under either inverted policy, and its total flag rate on gt-positive rows rose (self-harm 38%→56%, sexual 92%→98%), as did flagging of the negative class. The inverted policies contain more sensitive-topic vocabulary than the baselines.
+- cope-a, cope-b, and safeguard released 90–100% of flagged content on both domains.
+- Two models increased flagging of the negative class under the inverted self-harm policy (the direction the inverted policy defines as its new target): cope-b 0%→84% and safeguard 6%→30%. On the sexual domain no model increased negative-class flagging.
 
-## Off-topic policies (null test)
+## Off-topic results
 
-A second, independent check on the same question. Pair each aligned baseline with a policy about an **unrelated** harm the test sets do not contain (`eval/policies/violent_extremism_offtopic.md` — orthogonal to both self-harm and sexual content, no shared vocabulary, but still a serious safety policy). Because no row is actually about that harm, the correct answer is *not-a-violation* on every row: any flag is topic leakage. Scored with `eval/steerability.py`'s companion `eval/offtopic.py` (false-flag rate); the sanity column confirms each model still flags normally under its aligned policy, so a clean off-topic result reflects policy-reading, not a dead classifier.
+Under the off-topic policy the correct label is not-a-violation on every row, so any flag is a false positive. The baseline column is a sanity check that the model still flags its own domain (a near-zero off-topic rate is only meaningful when the baseline is high).
 
 | Model | Domain | Aligned baseline flags | Off-topic false-flag (gt+ / all) |
 |---|---|---|---|
-| Shieldstral | self-harm | 19/50 (38%) | **6/50 (12%)** / 6/100 (6%) |
+| Shieldstral | self-harm | 19/50 (38%) | 6/50 (12%) / 6/100 (6%) |
 | Shieldstral | sexual | 48/52 (92%) | 0/52 (0%) / 2/129 (2%) |
 | cope-a | self-harm | 23/50 (46%) | 0/50 (0%) / 0/100 (0%) |
 | cope-a | sexual | 38/52 (73%) | 0/52 (0%) / 0/129 (0%) |
 | cope-b | self-harm | 32/50 (64%) | 0/50 (0%) / 0/100 (0%) |
 | cope-b | sexual | 50/52 (96%) | 0/52 (0%) / 0/129 (0%) |
+| safeguard | self-harm | 30/50 (60%) | 2/50 (4%) / 2/100 (2%) |
+| safeguard | sexual | 43/52 (83%) | 0/52 (0%) / 0/129 (0%) |
 
-Both cope models flag nothing under a policy that does not target their content, while flagging 46–96% under the aligned policy — clean policy-conditioning. Shieldstral leaks 12% on self-harm and, tellingly, only where the domains overlap semantically: self-harm content trips a *violence* policy (self-directed violence shares surface features), while sexual content does not look like extremism (0%). The leakage clusters exactly where a topic detector would confuse the two.
+Observations:
+- cope-a and cope-b produced 0 false flags on all rows under the off-topic policy, while flagging 46–96% under their aligned policies.
+- safeguard produced 0 false flags on the sexual domain and 2 (4% of gt+) on the self-harm domain.
+- Shieldstral produced 6 false flags (12% of gt+) on the self-harm domain and 2 (on the negative class, 0% of gt+) on the sexual domain.
+- The non-zero self-harm false flags for Shieldstral and safeguard occur on self-harm content under a violence policy; sexual content produced 0 gt+ false flags for every model. Self-harm and violent-extremism content share surface features (violence) that the sexual and violent-extremism domains do not.
 
-## Interpretation
+## Cross-probe summary
 
-Both probes agree. Shieldstral's architecture explains the result: a single forward pass emitting yes/no logits has no room to reason over a policy's stated orientation, so it keys on topical presence of the sensitive content. This makes it strong at *topic detection* under a normal, aligned policy (see [RESULTS.md](RESULTS.md) round 2) but unable to be steered by policy framing — it neither bends to an inverted policy nor stays quiet under an off-topic one. A real limitation for any deployment that wants to redefine what counts as a violation without retraining.
+| Model | Inversion flip (sh / sex) | Off-topic false-flag, gt+ (sh / sex) |
+|---|---|---|
+| Shieldstral-1.0-3B | 0% / 0% | 12% / 0% |
+| cope-a-9b | 100% / 92% | 0% / 0% |
+| cope-b-a4b | 100% / 96% | 0% / 0% |
+| gpt-oss-safeguard-20b | 90% / 93% | 4% / 0% |
 
-The cope models, which are policy-conditioned generative classifiers, follow the policy text on both probes: they release the old target under inversion (cope-b even adopts the new one) and produce zero false flags under an off-topic policy. That is the behavior you want from a steerable, policy-first moderation model.
+The two probes are consistent per model: cope-a, cope-b, and safeguard change verdicts with the inverted policy and rarely flag under the off-topic policy; Shieldstral does neither. Restating the framing from the top: a high-adherence profile is configurable but places all safety judgment on the policy author, while a low-adherence profile applies a more fixed harm prior. This evaluation measures adherence; it does not rank the profiles.
 
-Artefacts: `eval/results/predictions_{shieldstral,cope_a,cope_b}_{sh,sex}_{steer,offtopic}_*.csv`, scored via `eval/steerability.py` (inverted) and `eval/offtopic.py` (off-topic). The cope off-topic legs require `VLLM_API_KEY` set for the Modal endpoints.
+## Strengths and limitations
+
+Drawing on both these probes and the aligned-policy accuracy in [RESULTS.md](RESULTS.md). Figures are the best-case aligned-policy F1 reported there.
+
+| Model | Strengths | Limitations |
+|---|---|---|
+| **Shieldstral-1.0-3B** | 3B, runs locally with no GPU serving; malformed-output-free by construction; competitive aligned accuracy (F1 ~0.92 self-harm, ~0.85 sexual) | 0% inversion flip and 12% off-topic self-harm false flags (tracks topic, not policy scope); low accuracy with a one-line policy (F1 ~0.27), so it depends on a detailed policy; verdict only, no reasoning |
+| **cope-a-9b** | Fully policy-adherent (100%/92% flip, 0% off-topic); reconfigurable via policy text | ~0.10–0.23 F1 below cope-b; hard 8K-token context ceiling (cannot load long policies); needs GPU serving + auth |
+| **cope-b-a4b** | Highest aligned accuracy (F1 ~0.936 self-harm, ~0.885 sexual, precision ~1.0 on most self-harm policies, 100% clean output); fully policy-adherent and the only model to strongly adopt the inverted target (neg 0%→84%) | Largest cope model (~50 GB), most costly to serve; very long policies can lower F1; sensitive to endpoint shape |
+| **gpt-oss-safeguard-20b** | Policy-adherent (90%/93% flip, ≤4% off-topic); emits chain-of-thought reasoning (auditable verdicts); second model to move toward the inverted target (neg 6%→30%) | Largest/slowest (20B reasoning), highest cost/latency; empty-response failure mode when the reasoning budget is exhausted; small residual self-harm off-topic leakage (4%) |
+
+The models span two coherent profiles, and which is preferable is deployment-dependent: a **fixed-prior / topic-detecting** profile (Shieldstral) is cheap, local, robust in output, and resistant to a bad or adversarial policy, but cannot be reconfigured without retraining and over-triggers on adjacent charged content; a **policy-adherent** profile (cope-a, cope-b, safeguard) is reconfigurable by editing the policy and scope-disciplined on off-topic content, but applies whatever policy it is given — placing all safety judgment on the policy author — and requires GPU serving. Within the policy-adherent group, cope-b leads on aligned accuracy, cope-a is lighter but context-limited, and safeguard adds reasoning transparency at the highest compute cost.
+
+## Model stacking (defense in depth)
+
+The two profiles above have *complementary* failure modes, which makes them candidates for a Swiss-cheese arrangement — layered classifiers where each layer's holes are covered by another layer's solid part, so no single weakness passes all the way through. The key property this evaluation surfaces: a fixed-prior model and a policy-adherent model do not fail on the same inputs.
+
+- **A fixed-prior layer (Shieldstral)** flags topically sensitive content regardless of policy wording. Its hole is over-triggering and no policy nuance. But because it is *not* steerable, it doubles as a backstop against a mistaken or adversarial policy: it will still flag self-harm content even if the active policy has been edited to permit it — exactly the case where a policy-adherent model goes silent.
+- **A policy-adherent, high-precision layer (cope-b / cope-a)** applies the actual policy to what the first layer surfaces: it removes the fixed-prior layer's false positives, honors carve-outs and scope, and is cheap to reconfigure. Its hole is that it trusts the policy fully — covered above by the fixed-prior backstop, and below by a reasoning tier.
+- **A reasoning / adjudication layer (safeguard)** handles borderline, appealed, or high-stakes items and emits an auditable rationale. Its independent reasoning path catches errors the classifier layers share, at the cost of the highest latency — so it is applied selectively, not to every item.
+- **A single-purpose guardrail (Mila's lightweight BERT guardrail)** is a small encoder-only classifier trained for exactly one detection target. It adds a dedicated, near-zero-cost slice for that one category, run on every item independent of the general models' policy conditioning. Its hole is precisely that it covers only its one purpose — but within that purpose it is cheap and reliable, so it catches its target harm even when a general model's policy framing would let it through. Several such narrow guardrails can be stacked, one per high-priority category.
+
+Illustrative stack: always-on cheap layers first — Shieldstral as a local, high-recall topic pre-filter alongside one or more Mila-style single-purpose guardrails covering priority categories — then cope-b as the policy-scoped adjudicator on what they surface, and safeguard for reasoning on the contested residue. The holes do not line up: an adversarial policy cannot blind the fixed-prior layer or the purpose-built guardrails; the cheap layers' over-flagging cannot reach users because the policy layer gates it; and shared classifier errors are caught by an independent reasoning path. This is a design implication drawn from the measured behavior, not itself a measured result — the specific layering, thresholds, and which items escalate would need their own evaluation. Note that the Mila guardrail was not run in this evaluation; it is included here for its architectural role.
+
+## Notes
+
+- **Scoring caveat.** The `summary_*_steer_*.csv` and `summary_*_offtopic_*.csv` files score the variant policy against the *original* ground-truth labels. For the inverted and off-topic columns those labels are the wrong target, so their F1/accuracy do not describe steerability — use `steerability.py` / `offtopic.py`.
+- **Auth.** The cope and safeguard Modal endpoints require `VLLM_API_KEY`. A run without it returns 401 on every row (empty predictions); `offtopic.py` warns when any prediction is empty.
+- **Artefacts.** `eval/results/predictions_{shieldstral,cope_a,cope_b,safeguard}_{sh,sex}_{steer,offtopic}_*.csv`, scored via `eval/steerability.py` and `eval/offtopic.py`.
