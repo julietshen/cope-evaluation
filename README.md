@@ -72,6 +72,19 @@ The original `eval_cope.py` (Modal/cope) works the same way with `--endpoint`/`-
 - The **red-team set** (`eval/sex_eval/redteam_set.csv`) is synthetic content hand-crafted to stress-test policy clauses. **NSFW**: contains explicit text by design.
 - The **policy files** under `eval/policies/` are either (a) hand-written for this evaluation, (b) pulled from Zentropi's public labelers API, or (c) sourced from OpenAI's `teen-safety-policy-pack` repository.
 
+## Limitations and bias risks
+
+These are small, single-labeler studies and should be read as directional, not definitive.
+
+- **Single labeler, no inter-annotator agreement.** Every test set is labeled by one source: the sexual-content and scam/spam sets by the author (Juliet Shen), and the self-harm set by a single external partner. No set has a second annotator or an agreement measure, so label subjectivity — especially on judgment-heavy boundaries (scam vs spam, self-disclosure vs glorification, suggestive vs explicit) — is not quantified.
+- **Selection bias from keyword/similarity sampling.** The sexual and scam positives were surfaced by keyword or signal ranking, so the sets over-represent *findable* violations and under-represent the long tail (novel phrasing, image-only, non-English, subtle social engineering). Reported **recall is an upper bound** — performance on items the sampling could surface, not on the harm in general.
+- **Small samples.** n = 100 (self-harm), 129 (sexual), 100 (scam). Confidence intervals are wide; treat cross-model differences under ~0.1 F1 as ties rather than rankings.
+- **Single platform and time window.** The sexual and scam sets are drawn from Bluesky snapshots (2024–2025); tactics and norms drift, and other platforms differ.
+- **Label-philosophy dependence.** Scores depend on how each set was labeled and how each policy was authored; a published policy calibrated to a different labeling philosophy can score low here without being deficient (see the self-harm framing-disagreement finding in RESULTS.md).
+- **Overfitting / benchmark-gaming risk.** Because the sets are small, iterating policy wording to raise F1 on them would overfit. Policies here are frozen against the test items and not tuned on their scores; exact items are kept out of published numbers so they cannot be trained against.
+
+A differently-sampled held-out validation set (fresh time window, disjoint sampling method, and ideally a second labeler) would bound the selection and labeler bias directly. This applies to all three domains, not only scam.
+
 ## Status
 
 The initial evaluation was conducted as part of an RMC inclusion review for cope-b-a4b in May 2026; the Shieldstral round followed in August 2026. Findings will be shared with Zentropi for response and with the wider RMC community. The harness (`eval/eval.py`) is intended for reuse on future models.
