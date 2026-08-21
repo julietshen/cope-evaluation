@@ -1,0 +1,18 @@
+Loading weights:   0%|          | 0/458 [00:00<?, ?it/s]Loading weights:  98%|█████████▊| 447/458 [00:00<00:00, 4453.25it/s]Loading weights: 100%|██████████| 458/458 [00:00<00:00, 4550.10it/s]
+model=Shieldstral-1.0-3B-mm  rows=91  policies=['scam_simple', 'scam_full']  concurrency=1
+[scam_simple] resuming, 88 already scored
+[scam_simple] 91/91 (0.00/s, eta 0 min)
+[scam_simple] complete
+[scam_full] 25/91 (0.02/s, eta 45 min)
+[scam_full] 50/91 (0.02/s, eta 35 min)
+[scam_full] 75/91 (0.03/s, eta 9 min)
+[scam_full] 91/91 (0.03/s, eta 0 min)
+[scam_full] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_shieldstral_mm_shieldstral_imgcap_20260821_010530.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+scam_simple                            91    8    8    9   66    0  0.500  0.471  0.485  0.813
+scam_full                              91   10    9    7   65    0  0.526  0.588  0.556  0.824
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_shieldstral_mm_shieldstral_imgcap_20260821_010530.csv

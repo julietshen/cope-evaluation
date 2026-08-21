@@ -79,7 +79,37 @@ Predictions: `eval/results/predictions_shieldstral_shieldstral_strictness_202608
 - **Cope-b keeps the crown on both domains, but the margin is 0.014–0.033 F1** against a model 1/16th its size that runs on a laptop with no serving stack, no endpoint-shape pitfalls, and no output parsing. For teams that can't run Modal/vLLM or a 50 GB model, Shieldstral is now the obvious self-hosted starting point.
 - **Policy authorship matters more, not less.** Shieldstral amplifies whatever the policy says: a one-liner gives you almost nothing on fuzzy categories, a well-scoped detailed policy gives you the best recall in the eval, and an enumeration-heavy policy makes it over-flag. Pairing it with a mismatched off-the-shelf policy moves F1 by 0.65 (self-harm minimal → very_long). The round-1 takeaway — test policies against your own labels — is even more true here.
 - **Thresholding is a free knob the others don't have.** Shieldstral outputs a continuous score (saved in the predictions CSVs); the 0.5 threshold used here is the model card default. A deployment could trade the sex-domain over-flagging back for precision by raising the threshold — no policy rewrite required. We did not tune this; the reported numbers are untuned defaults.
-- Untested: Shieldstral's multimodal (image) input, which would pair with the image-bearing Bluesky content the round-1 sampler had to drop.
+- Shieldstral's multimodal (image) input and non-English behavior are probed on the scam domain below.
+
+## Multimodal and multilingual probes (scam domain)
+
+Two Shieldstral-specific probes on the scam domain (August 2026). Small samples — read as directional; the [bias caveats](README.md#limitations-and-bias-risks) apply.
+
+### Images (multimodal)
+
+91 image-bearing Bluesky posts with scam-signal text, images resolved via the public `getPosts` CDN endpoint, labeled 17 scam / 74 not. Shieldstral is a vision-language model; the `shieldstral_mm` adapter feeds the policy as text and the post as the Document. Three input conditions on the same 91 posts:
+
+| Input to Shieldstral | scam_simple F1 (P / R) | scam_full F1 (P / R) |
+|---|---|---|
+| image only | 0.000 (0 / 0) | 0.000 (0 / 0) |
+| image + caption | 0.485 (0.500 / 0.471) | 0.556 (0.526 / 0.588) |
+| caption only (text) | 0.564 (0.500 / 0.647) | 0.585 (0.500 / 0.706) |
+
+- **The scam signal is textual, not visual.** With the image alone the model flags nothing (recall 0): the labeled "scam images" are benign product / giveaway / promo photos (a gaming chair, a pizza oven, a monitor) whose scam is carried by the caption. An image-only classifier correctly does not flag a photo of a pizza oven.
+- **The image does not help, and slightly hurts.** Caption-only outperforms image+caption (recall 0.647 vs 0.471 on `scam_simple`) — adding the benign product image dilutes the textual signal. For this harm on this platform, the image modality adds no scam signal.
+- A fair *visual* scam test would need images that carry the scam in-pixel (phishing screenshots, text-in-image crypto graphics); those are rare in a caption-matched sample.
+
+### Non-English text
+
+77 posts across 11 languages (ja, es, de, fr, ko, pt, nl, it, tr, ru, pl). A random multilingual sample contained **0 scams**, so recall is not measurable; the sample instead bounds the false-positive rate on benign non-English content:
+
+| Policy | False-positive rate, non-English | False-positive rate, English (reference) |
+|---|---|---|
+| scam_simple | 4/77 (5%) | 7/76 (9%) |
+| scam_full | 5/77 (6%) | 13/76 (17%) |
+
+- **No language-specific over-flagging.** The false positives are spread one-per-language (de, fr, ru, tr) and track scam-adjacent cues (a `t.me` channel-promo, a "bitcoin" mention), not language. The non-English false-positive rate is *lower* than the English one, so the scam policy does not become trigger-happy in other languages.
+- **Recall across languages is untested** — a random sample is too sparse in non-English scams. A denser-positive domain (e.g. sexual content) is the appropriate follow-up for cross-language recall.
 
 
 # Cope Evaluation Results

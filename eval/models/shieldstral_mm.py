@@ -56,15 +56,28 @@ def make_classifier(opts: dict):
     YES, NO = _yes_no_ids(tok)
 
     def classify(policy_text: str, content: str, attempt: int = 0):
+        import json
         instruct = INSTRUCT_PREAMBLE + policy_text
+        # content is either a plain image path, or a JSON object
+        # {"image": <path>, "text": <caption>} to judge image + post caption together.
+        caption = ""
+        path = content.strip()
+        if path.startswith("{"):
+            try:
+                obj = json.loads(path)
+                path = (obj.get("image") or "").strip()
+                caption = (obj.get("text") or "").strip()
+            except Exception:
+                pass
         try:
-            img = Image.open(content.strip()).convert("RGB")
+            img = Image.open(path).convert("RGB")
         except Exception as e:
-            return "", f"ERROR loading image {content!r}: {e}"
+            return "", f"ERROR loading image {path!r}: {e}"
+        doc = f"<Document>:\n{caption}" if caption else "<Document>:"
         messages = [
             {"role": "system", "content": [{"type": "text", "text": SYSTEM}]},
             {"role": "user", "content": [
-                {"type": "text", "text": f"<Instruct>: {instruct}\n\n<Query>: {query}\n\n<Document>:"},
+                {"type": "text", "text": f"<Instruct>: {instruct}\n\n<Query>: {query}\n\n{doc}"},
                 {"type": "image"},
             ]},
         ]
