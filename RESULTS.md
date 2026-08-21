@@ -377,6 +377,44 @@ The unmodified `sexual_content_oai` policy produced 1 error on cope-b and 0 on c
 
 **When porting a policy across model frameworks, output-format alignment is required, not optional.** The content of the policy can transfer; the output instructions cannot.
 
+## Scam & spam
+
+A third harm domain, added August 2026 across all four models. Policies are grounded in the trust & safety taxonomy of spam/fraud in tsbook.org (ch. 2) and the GBW-II Fellowship scams harm entry: `scam_minimal` / `scam_simple` / `scam_full` treat a scam as a *commercial offering that intentionally deceives for financial gain*, and `scam_spam_inclusive` broadens the target to also cover unwanted or manipulative promotional spam (deception not required).
+
+### Test set
+
+100 Bluesky posts sampled from the public `alpindale/two-million-bluesky-posts` dataset by ranking on scam-signal keywords (60 candidates) plus random background (40), labeled by Juliet Shen. The same 100 posts carry two labelings, so a model's prediction is scored under both scopes:
+
+- **Scam-only** (`eval/scam_eval/test_set_scam.csv`): 24 scam / 76 not.
+- **Spam-inclusive** (`eval/scam_eval/test_set_spam.csv`): 38 positive / 62 not (the 24 scams plus 14 spam-not-scam items; scam is a subset of spam-inclusive by construction).
+
+Because the content is identical across scopes, each model was run once (four policies) and re-scored against both label sets with `eval/rescore.py`. The keyword-sampling and single-labeler caveats in the [README](README.md#limitations-and-bias-risks) apply — recall here is an upper bound.
+
+### Scam-only results (labels: 24 scam / 76 not)
+
+| Model | scam_minimal | scam_simple | scam_full | Best F1 (precision / recall) |
+|---|---|---|---|---|
+| **cope-b** | 0.844 | **0.909** | 0.884 | **0.909** (1.000 / 0.833) |
+| safeguard | 0.864 | 0.864 | 0.780 | 0.864 (0.950 / 0.792) |
+| Shieldstral | 0.727 | 0.784 | 0.746 | 0.784 (0.741 / 0.833) |
+| cope-a | 0.214 | 0.629 | 0.667 | 0.667 (1.000 / 0.500) |
+
+### Spam-inclusive results (labels: 38 positive / 62 not, `scam_spam_inclusive` policy)
+
+| Model | F1 | Precision | Recall |
+|---|---|---|---|
+| **cope-b** | **0.900** | 0.857 | 0.947 |
+| cope-a | 0.892 | 0.917 | 0.868 |
+| safeguard | 0.861 | 0.886 | 0.838 |
+| Shieldstral | 0.822 | 0.712 | 0.974 |
+
+### Observations
+
+- **Cope-b leads both scopes** (0.909 scam-only, 0.900 spam-inclusive), extending its self-harm and sexual-content pattern to a fourth domain, with perfect precision on the narrow scam definition.
+- **Cope-a is scope-sensitive.** On the narrow scam definition its recall is low (0.13 → 0.50 as detail grows, precision 1.000) — it flags only the most unambiguous scams. On the broader spam-inclusive target it reaches 0.892 F1. It needs a wider target to fire.
+- **Shieldstral's detail-buys-recall-at-precision-cost pattern repeats.** Recall climbs with policy detail on scam-only, and on the broad spam scope it reaches 0.974 recall at 0.712 precision (it over-includes).
+- **`scam_simple` is the balance point for cope-b and safeguard**; `scam_full` lowers safeguard's F1 (0.864 → 0.780), the same over-specification effect seen on the sexual domain.
+
 ## Cross-domain observations
 
 ### 1. Policy detail buys you recall — until it doesn't

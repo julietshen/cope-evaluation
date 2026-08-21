@@ -1,0 +1,130 @@
+### shieldstral
+Loading weights:   0%|          | 0/458 [00:00<?, ?it/s]Loading weights: 100%|██████████| 458/458 [00:00<00:00, 5307.60it/s]
+model=Shieldstral-1.0-3B  rows=100  policies=['scam_minimal', 'scam_simple', 'scam_full', 'scam_spam_inclusive']  concurrency=1
+[scam_minimal] 25/100 (4.85/s, eta 0 min)
+[scam_minimal] 50/100 (5.55/s, eta 0 min)
+[scam_minimal] 75/100 (5.89/s, eta 0 min)
+[scam_minimal] 100/100 (6.04/s, eta 0 min)
+[scam_minimal] complete
+[scam_simple] 25/100 (2.52/s, eta 0 min)
+[scam_simple] 50/100 (2.48/s, eta 0 min)
+[scam_simple] 75/100 (2.48/s, eta 0 min)
+[scam_simple] 100/100 (2.47/s, eta 0 min)
+[scam_simple] complete
+[scam_full] 25/100 (1.15/s, eta 1 min)
+[scam_full] 50/100 (1.15/s, eta 1 min)
+[scam_full] 75/100 (1.15/s, eta 0 min)
+[scam_full] 100/100 (1.14/s, eta 0 min)
+[scam_full] complete
+[scam_spam_inclusive] 25/100 (1.41/s, eta 1 min)
+[scam_spam_inclusive] 50/100 (1.27/s, eta 1 min)
+[scam_spam_inclusive] 75/100 (1.14/s, eta 0 min)
+[scam_spam_inclusive] 100/100 (1.01/s, eta 0 min)
+[scam_spam_inclusive] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_shieldstral_shieldstral_scamall_20260820_194231.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+scam_minimal                          100   16    4    8   72    0  0.800  0.667  0.727  0.880
+scam_simple                           100   20    7    4   69    0  0.741  0.833  0.784  0.890
+scam_full                             100   22   13    2   63    0  0.629  0.917  0.746  0.850
+scam_spam_inclusive                   100   24   28    0   48    0  0.462  1.000  0.632  0.720
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_shieldstral_shieldstral_scamall_20260820_194231.csv
+### cope_a
+model=cope-a-9b  rows=100  policies=['scam_minimal', 'scam_simple', 'scam_full', 'scam_spam_inclusive']  concurrency=16
+[scam_minimal] 25/100 (0.12/s, eta 11 min)
+[scam_minimal] 50/100 (0.23/s, eta 4 min)
+[scam_minimal] 75/100 (0.34/s, eta 1 min)
+[scam_minimal] 100/100 (0.45/s, eta 0 min)
+[scam_minimal] complete
+[scam_simple] 25/100 (4.69/s, eta 0 min)
+[scam_simple] 50/100 (6.87/s, eta 0 min)
+[scam_simple] 75/100 (8.15/s, eta 0 min)
+[scam_simple] 100/100 (8.16/s, eta 0 min)
+[scam_simple] complete
+[scam_full] 25/100 (4.19/s, eta 0 min)
+[scam_full] 50/100 (5.78/s, eta 0 min)
+[scam_full] 75/100 (5.87/s, eta 0 min)
+[scam_full] 100/100 (7.04/s, eta 0 min)
+[scam_full] complete
+[scam_spam_inclusive] 25/100 (6.29/s, eta 0 min)
+[scam_spam_inclusive] 50/100 (8.52/s, eta 0 min)
+[scam_spam_inclusive] 75/100 (9.54/s, eta 0 min)
+[scam_spam_inclusive] 100/100 (10.10/s, eta 0 min)
+[scam_spam_inclusive] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_cope_a_cope_a_scamall_20260820_194649.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+scam_minimal                          100    3    1   21   75    0  0.750  0.125  0.214  0.780
+scam_simple                           100   11    0   13   76    0  1.000  0.458  0.629  0.870
+scam_full                             100   12    0   12   76    0  1.000  0.500  0.667  0.880
+scam_spam_inclusive                   100   21   15    3   61    0  0.583  0.875  0.700  0.820
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_cope_a_cope_a_scamall_20260820_194649.csv
+### cope_b
+model=cope-b-a4b  rows=100  policies=['scam_minimal', 'scam_simple', 'scam_full', 'scam_spam_inclusive']  concurrency=16
+[scam_minimal] 25/100 (0.11/s, eta 11 min)
+[scam_minimal] 50/100 (0.22/s, eta 4 min)
+[scam_minimal] 75/100 (0.32/s, eta 1 min)
+[scam_minimal] 100/100 (0.43/s, eta 0 min)
+[scam_minimal] complete
+[scam_simple] 25/100 (5.30/s, eta 0 min)
+[scam_simple] 50/100 (7.05/s, eta 0 min)
+[scam_simple] 75/100 (7.54/s, eta 0 min)
+[scam_simple] 100/100 (7.89/s, eta 0 min)
+[scam_simple] complete
+[scam_full] 25/100 (5.43/s, eta 0 min)
+[scam_full] 50/100 (7.09/s, eta 0 min)
+[scam_full] 75/100 (7.98/s, eta 0 min)
+[scam_full] 100/100 (8.61/s, eta 0 min)
+[scam_full] complete
+[scam_spam_inclusive] 25/100 (5.13/s, eta 0 min)
+[scam_spam_inclusive] 50/100 (6.80/s, eta 0 min)
+[scam_spam_inclusive] 75/100 (6.99/s, eta 0 min)
+[scam_spam_inclusive] 100/100 (7.54/s, eta 0 min)
+[scam_spam_inclusive] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_cope_b_cope_b_scamall_20260820_195119.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+scam_minimal                          100   19    2    5   74    0  0.905  0.792  0.844  0.930
+scam_simple                           100   20    0    4   76    0  1.000  0.833  0.909  0.960
+scam_full                             100   19    0    5   76    0  1.000  0.792  0.884  0.950
+scam_spam_inclusive                   100   24   18    0   58    0  0.571  1.000  0.727  0.820
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_cope_b_cope_b_scamall_20260820_195119.csv
+### safeguard
+model=gpt-oss-safeguard-20b  rows=100  policies=['scam_minimal', 'scam_simple', 'scam_full', 'scam_spam_inclusive']  concurrency=16
+[scam_minimal] 25/100 (0.10/s, eta 13 min)
+[scam_minimal] 50/100 (0.19/s, eta 4 min)
+[scam_minimal] 75/100 (0.28/s, eta 1 min)
+[scam_minimal] 100/100 (0.35/s, eta 0 min)
+[scam_minimal] complete
+[scam_simple] 25/100 (6.44/s, eta 0 min)
+[scam_simple] 50/100 (7.93/s, eta 0 min)
+[scam_simple] 75/100 (8.44/s, eta 0 min)
+[scam_simple] 100/100 (7.17/s, eta 0 min)
+[scam_simple] complete
+[scam_full] 25/100 (5.82/s, eta 0 min)
+[scam_full] 50/100 (6.87/s, eta 0 min)
+[scam_full] 75/100 (7.10/s, eta 0 min)
+[scam_full] 100/100 (6.23/s, eta 0 min)
+[scam_full] complete
+[scam_spam_inclusive] 25/100 (5.27/s, eta 0 min)
+[scam_spam_inclusive] 50/100 (6.27/s, eta 0 min)
+[scam_spam_inclusive] 75/100 (6.81/s, eta 0 min)
+[scam_spam_inclusive] 100/100 (2.52/s, eta 0 min)
+[scam_spam_inclusive] complete
+
+wrote predictions: /Users/julietshen/ROOST/vibecheck/eval/results/predictions_safeguard_safeguard_scamall_20260820_195719.csv
+
+policy                                  n   tp   fp   fn   tn  err   prec    rec     f1    acc
+----------------------------------------------------------------------------------------------------
+scam_minimal                          100   19    1    5   75    0  0.950  0.792  0.864  0.940
+scam_simple                           100   19    1    5   75    0  0.950  0.792  0.864  0.940
+scam_full                             100   16    1    8   75    0  0.941  0.667  0.780  0.910
+scam_spam_inclusive                   100   20   15    3   61    1  0.571  0.870  0.690  0.818
+wrote summary: /Users/julietshen/ROOST/vibecheck/eval/results/summary_safeguard_safeguard_scamall_20260820_195719.csv
+ALL SCAM SWEEPS DONE

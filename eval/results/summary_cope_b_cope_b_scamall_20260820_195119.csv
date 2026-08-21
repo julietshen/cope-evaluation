@@ -1,0 +1,5 @@
+policy,n,tp,fp,fn,tn,errors,precision,recall,f1,accuracy
+scam_minimal,100,19,2,5,74,0,0.905,0.792,0.844,0.930
+scam_simple,100,20,0,4,76,0,1.000,0.833,0.909,0.960
+scam_full,100,19,0,5,76,0,1.000,0.792,0.884,0.950
+scam_spam_inclusive,100,24,18,0,58,0,0.571,1.000,0.727,0.820
